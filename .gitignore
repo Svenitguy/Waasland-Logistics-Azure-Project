@@ -1,0 +1,50 @@
+# =========================================================================
+# Azure & Cloud Engineer .gitignore voor Waasland Logistics
+# =========================================================================
+
+# --- Systeembestanden (OS) ---
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- VS Code specifieke instellingen ---
+.vscode/
+*.code-workspace
+
+# --- Tijdelijke bestanden en logs ---
+*.log
+*.tmp
+*.bak
+
+# --- Geheimen, Wachtwoorden & Certificaten (CRUCIAAL VOOR SECURITY!) ---
+*.pfx
+*.pem
+*.key
+*.secret
+credentials
+.env
+.env.*
+secrets.tfvars
+*.tfvars
+
+# --- Infrastructure as Code: Terraform ---
+.terraform/
+*.tfstate
+*.tfstate.backup
+.terraform.tfstate.lock.info
+
+# --- Infrastructure as Code: Azure Bicep & ARM templates ---
+*.arm.json
+bin/
+obj/
+
+# --- Azure CLI & PowerShell Cloud Cache ---
+.azure/
+.azure-cli/
+.pscloud/
+
+# Verberg screenshots voor portfolio-beveiliging
+docs/screenshots/
+
+# Verberg architectuurkladblok tot invulling
+docs/architecture.md
