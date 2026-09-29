@@ -8,7 +8,17 @@ terraform {
   }
 }
 
+# De standaard provider (voor het Platform / de Hub)
 provider "azurerm" {
   features {}
-  use_oidc = true
+  use_oidc        = true
+  subscription_id = var.subscription_id_platform
+}
+
+# De extra provider voor de Dev Workloads (met een alias)
+provider "azurerm" {
+  alias           = "dev"
+  features {}
+  use_oidc        = true
+  subscription_id = var.subscription_id_dev
 }
