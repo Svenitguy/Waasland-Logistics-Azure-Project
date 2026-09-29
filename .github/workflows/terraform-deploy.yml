@@ -5,9 +5,7 @@ on:
   push:
     branches:
       - main
-    paths:
-      - 'terraform/**'
-    paths-ignore:           # Voorkomt onnodige runs bij documentatie-updates
+    paths-ignore:
       - 'README.md'
       - 'screenshots/**'
 
