@@ -17,7 +17,7 @@ provider "azurerm" {
 
 # De extra provider voor de Dev Workloads (met een alias)
 provider "azurerm" {
-  alias           = "dev"
+  alias = "dev"
   features {}
   use_oidc        = true
   subscription_id = var.subscription_id_dev

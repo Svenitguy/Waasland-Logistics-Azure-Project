@@ -122,7 +122,7 @@ resource "azurerm_network_security_group" "nsg_db" {
     access                     = "Allow"
     protocol                   = "Tcp"
     source_port_range          = "*"
-    destination_port_range     = "1433" # Standaard SQL Poort
+    destination_port_range     = "1433"        # Standaard SQL Poort
     source_address_prefix      = "10.1.2.0/24" # Het App-subnet
     destination_address_prefix = "10.1.3.0/24" # Het DB-subnet
   }
@@ -155,22 +155,22 @@ resource "azurerm_subnet_network_security_group_association" "nsg_assoc_db" {
 
 # Peering van Hub naar Dev Spoke (Gemaakt in de Hub/Platform Subscription)
 resource "azurerm_virtual_network_peering" "hub_to_dev" {
-  provider                  = azurerm.hub
-  name                      = "peer-hub-to-logistics-dev"
-  resource_group_name       = azurerm_resource_group.rg_hub.name
-  virtual_network_name      = azurerm_virtual_network.vnet_hub.name
-  remote_virtual_network_id = azurerm_virtual_network.vnet_spoke_dev.id
+  provider                     = azurerm.hub
+  name                         = "peer-hub-to-logistics-dev"
+  resource_group_name          = azurerm_resource_group.rg_hub.name
+  virtual_network_name         = azurerm_virtual_network.vnet_hub.name
+  remote_virtual_network_id    = azurerm_virtual_network.vnet_spoke_dev.id
   allow_virtual_network_access = true
   allow_forwarded_traffic      = true
 }
 
 # Peering van Dev Spoke naar Hub (Gemaakt in de Dev/Logistics Subscription)
 resource "azurerm_virtual_network_peering" "dev_to_hub" {
-  provider                  = azurerm.dev
-  name                      = "peer-logistics-dev-to-hub"
-  resource_group_name       = azurerm_resource_group.rg_dev.name
-  virtual_network_name      = azurerm_virtual_network.vnet_spoke_dev.name
-  remote_virtual_network_id = azurerm_virtual_network.vnet_hub.id
+  provider                     = azurerm.dev
+  name                         = "peer-logistics-dev-to-hub"
+  resource_group_name          = azurerm_resource_group.rg_dev.name
+  virtual_network_name         = azurerm_virtual_network.vnet_spoke_dev.name
+  remote_virtual_network_id    = azurerm_virtual_network.vnet_hub.id
   allow_virtual_network_access = true
   allow_forwarded_traffic      = true
 }
