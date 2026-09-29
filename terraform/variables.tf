@@ -17,4 +17,3 @@ variable "subscription_id_dev" {
   type        = string
   description = "De Subscription ID voor de Logistics Dev-Spoke"
 }
-
