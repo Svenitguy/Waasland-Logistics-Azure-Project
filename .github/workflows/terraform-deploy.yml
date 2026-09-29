@@ -1,3 +1,4 @@
+
 name: "WLCS - Terraform Enterprise Network Deployment"
 
 on:
@@ -6,6 +7,9 @@ on:
       - main
     paths:
       - 'terraform/**'
+    paths-ignore:           # Voorkomt onnodige runs bij documentatie-updates
+      - 'README.md'
+      - 'screenshots/**'
 
 permissions:
   id-token: write
@@ -13,10 +17,10 @@ permissions:
 
 jobs:
   # =========================================================================
-  # JOB 1: VALIDATE (De Kwaliteitsbewaker)
+  # JOB 1: VALIDATE & SECURITY SCAN (De Kwaliteitsbewaker)
   # =========================================================================
   validate:
-    name: "1. Code Validation Check"
+    name: "1. Code Validation & Security"
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
@@ -39,8 +43,19 @@ jobs:
         working-directory: ./terraform
         run: terraform validate
 
+      # HIER IS TRIVY: Scant je IaC code vóórdat er verbinding met Azure wordt gemaakt
+      - name: Run Trivy Security Scanner (IAC)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'config'
+          scan-ref: './terraform'
+          hide-progress: false
+          format: 'table'
+          exit-code: '1'
+          severity: 'HIGH,CRITICAL'
+
   # =========================================================================
-  # JOB 2: TERRAFORM PLAN (Kijken naar de wijzigingen)
+  # JOB 2: TERRAFORM PLAN (Genereren en opslaan van wijzigingen)
   # =========================================================================
   plan:
     name: "2. Terraform Security Plan"
@@ -72,14 +87,23 @@ jobs:
         working-directory: ./terraform
         run: terraform init
 
+      # Genereer het plan en sla het op als 'tfplan' file
       - name: Terraform Plan
         working-directory: ./terraform
         run: |
-          terraform plan \
+          terraform plan -out=tfplan \
             -var "tenant_id=${{ secrets.AZURE_TENANT_ID }}" \
             -var "client_id=${{ secrets.AZURE_CLIENT_ID }}" \
             -var "subscription_id_platform=${{ secrets.AZURE_SUBSCRIPTION_PLATFORM }}" \
             -var "subscription_id_dev=${{ secrets.AZURE_SUBSCRIPTION_DEV }}"
+
+      # Upload het plan zodat de Apply job exact ditzelfde bestand gebruikt
+      - name: Upload Terraform Plan Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan
+          path: ./terraform/tfplan
+          retention-days: 1
 
   # =========================================================================
   # JOB 3: TERRAFORM APPLY (Beveiligd met Handmatige Goedkeuring)
@@ -112,15 +136,18 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_PLATFORM }}
 
+      # Download het exact goedgekeurde plan-bestand uit Job 2
+      - name: Download Terraform Plan Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan
+          path: ./terraform
+
       - name: Terraform Init
         working-directory: ./terraform
         run: terraform init
 
+      # Voer de apply uit op basis van het beveiligde plan-bestand
       - name: Terraform Apply
         working-directory: ./terraform
-        run: |
-          terraform apply -auto-approve \
-            -var "tenant_id=${{ secrets.AZURE_TENANT_ID }}" \
-            -var "client_id=${{ secrets.AZURE_CLIENT_ID }}" \
-            -var "subscription_id_platform=${{ secrets.AZURE_SUBSCRIPTION_PLATFORM }}" \
-            -var "subscription_id_dev=${{ secrets.AZURE_SUBSCRIPTION_DEV }}"
+        run: terraform apply -auto-approve tfplan
