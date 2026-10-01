@@ -1,3 +1,9 @@
+variable "location" {
+  type        = string
+  default     = "northeurope" # Centraal beheerde regio voor de infrastructuur (Ierland)
+  description = "De primaire Azure-regio voor Waasland Logistics"
+}
+
 variable "tenant_id" {
   type        = string
   description = "De Microsoft Entra ID Tenant ID van Waasland Logistics"

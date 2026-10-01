@@ -1,7 +1,6 @@
 variable "location" {
   type        = string
-  default     = "westeurope"
-  description = "De primaire Azure-regio voor Waasland Logistics"
+  description = "De Azure-regio doorgegeven vanuit de root-module"
 }
 
 variable "subscription_id_platform" {
