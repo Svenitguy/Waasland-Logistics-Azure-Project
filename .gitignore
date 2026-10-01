@@ -44,7 +44,7 @@ obj/
 .pscloud/
 
 # Verberg screenshots voor portfolio-beveiliging
-docs/screenshots/
+# docs/screenshots/
 
 # Verberg architectuurkladblok tot invulling
-docs/architecture.md
+# 
