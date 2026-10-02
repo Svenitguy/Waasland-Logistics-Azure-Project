@@ -1,7 +1,9 @@
 name: "WLCS - Azure Enterprise Infrastructure Destroy"
 
 on:
-  workflow_dispatch: # Handmatige startknop in GitHub om 16:00 uur!
+  workflow_dispatch: # Behoudt de grote handmatige startknop in de GitHub Actions UI!
+  schedule:
+    - cron: '0 17 * * 1-5' # AUTOMATISCHE TIMER: Draait elke maandag t/m vrijdag om 17:00 UTC (18:00 of 19:00 Belgische tijd)
 
 permissions:
   id-token: write
@@ -12,10 +14,11 @@ jobs:
     name: "Destroy Costly Addons (Azure Bastion Only)"
     runs-on: ubuntu-latest
     environment: 
-      name: 'wlcs-infrastructure-production' # Handmatige goedkeuring per mail/knop!
+      name: 'wlcs-infrastructure-production' # Handmatige goedkeuring via de GitHub Portal (Mail/Knop)
     env:
       ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_PLATFORM }} # <-- CRUCIAAL: Nodig om de remote state van Base te mogen lezen!
       ARM_USE_OIDC: true
 
     steps:
@@ -27,7 +30,7 @@ jobs:
         with:
           terraform_version: 1.5.7
 
-      - name: Azure Login Platform
+      - name: Azure Login via OIDC
         uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
@@ -38,6 +41,7 @@ jobs:
         working-directory: ./terraform/02_addons
         run: terraform init
 
+      # Vernietigt uitsluitend Bastion, het PIP en het Bastion Subnet. Core Base blijft 100% veilig.
       - name: Terraform Destroy (Addons Only)
         working-directory: ./terraform/02_addons
         run: |
