@@ -81,18 +81,18 @@ Op het niveau van de `WLCS-Root-MG` zijn strikte **Azure Policies** afgedwongen 
 
 ## 5. Deployment & State Management (IaC & CI/CD)
 
-### 🔒 Remote State Backend
-De Terraform state wordt niet lokaal bewaard, maar centraal en veilig opgeslagen in een **Azure Blob Storage Container** (`tfstate`) binnen de Resource Group `rg-wlcs-tfstate-prod-001`.
-*   Toegang is beveiligd via RBAC met de rol `Storage Blob Data Owner`.
-*   State locking voorkomt *concurrency*-conflicten tijdens gelijktijdige runs.
+### 🔒 Remote State Backend & State Isolation
+De Terraform state wordt centraal en veilig opgeslagen in een **Azure Blob Storage Container** (`tfstate`) binnen de Resource Group `rg-wlcs-tfstate-prod-001`. Er is gekozen voor **State Isolation** door het project op te splitsen in twee onafhankelijke lagen:
+* `network.tfstate` ➔ Huisvest de permanente basisinfrastructuur (VNets, Peerings, Subnets).
+* `addons/terraform.tfstate` ➔ Huisvest tijdelijke, kostbare add-ons (Azure Bastion).
 
-### 🚀 CI/CD GitHub Actions Pipeline
-De pipeline (`.github/workflows/terraform-deploy.yml`) is opgedeeld in drie geautomatiseerde fases om menselijke fouten uit te sluiten:
+### 🚀 CI/CD GitHub Actions Pipeline (GitOps "Speculative Plan" Model)
+De uitrol-pipeline (`.github/workflows/terraform-deploy.yml`) is opgebouwd uit **vier opeenvolgende enterprise-jobs** om stabiliteit en veiligheid te garanderen:
 
-1.  **Code Validation & Security (Shift-Left Security)**:
-    *   `terraform fmt -check` en `terraform validate` controleren de syntax.
-    *   **Trivy Security** scant de code op hardcoded secrets en misconfiguraties *voordat* er infrastructuur wordt aangemaakt.
-2.  **Terraform Security Plan**:
-    *   Genereert het infrastructuurplan via OIDC (OpenID Connect) authenticatie. Dit is passwordless en elimineert het risico van rondslingerende Azure Client Secrets op GitHub.
-3.  **Azure Infrastructure Apply**:
-    *   **Gated Deployment**: Deze fase vereist een handmatige goedkeuring (*Environment Approval*) in GitHub om te garanderen dat er nooit ongecontroleerd wijzigingen naar Azure gepusht worden.
+1. **Code Validation & Security (Shift-Left)**: Controleert syntax en scant de complete mappenstructuur op kwetsbaarheden met *Trivy*.
+2. **Generate Speculative Plans**: Genereert via passwordless OIDC-authenticatie gelijktijdig een `terraform plan` voor zowel de Base- als de Addons-laag. Dankzij een cloud-native `try()`-fallback matrix valideert de pijplijn op *elke* feature-branch of Bastion correct compileert, zonder infrastructuur aan te raken.
+3. **Apply Core Infrastructure (Gate)**: Wordt uitsluitend geactiveerd op de `main`-branch en vereist een handmatige goedkeuring (*Environment Approval*) om de core-netwerkoutputs bij te werken.
+4. **Apply Addons & Features**: Volgt direct en sequentieel (`needs: apply_base`) op de `main`-branch om de actuele remote-state data te consumeren en Azure Bastion live uit te rollen.
+
+### 💰 Geautomatiseerde FinOps Destroy-Pipeline
+Om "ghost resource"-kosten te elimineren, is een specifieke destroy-pipeline (`terraform-destroy.yml`) ingericht. Deze bevat een **automatische cron-job** (`schedule: 0 17 * * 1-5`) die elke werkdag om 17:00 UTC uitsluitend de `02_addons`-stack aanroept. Hierdoor worden Bastion en het Public IP automatisch vernietigd zodra de werkdag eindigt, met een gegarandeerde 100% veiligheid voor het core-netwerk.

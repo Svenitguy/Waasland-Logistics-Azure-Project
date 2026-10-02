@@ -152,7 +152,7 @@ terraform/
         providers.tf
 ```
 
-### 🔒 Beveiligde Cloud Toegang via Azure Bastion
+### 🔒 Beveiligde Cloud Toegang via Azure Bastion (On-Demand Provisioning)
 Als eerste core-component binnen Fase 3 is een **Azure Bastion Host** geconfigureerd binnen het Platform Hub-netwerk. 
 * **WAF Security & Isolation:** Er worden geen publieke IP-adressen (PIP) gekoppeld aan de backend virtuele machines. Alle beheercommunicatie (RDP/SSH) verloopt volledig geïsoleerd en versleuteld over HTTPS via Azure Bastion.
-* **WAF Cost Optimization:** Er is resoluut gekozen voor de gloednieuwe **Developer SKU** van Azure Bastion. Dit elimineert de noodzaak voor een prijzig publiek IP-adres en minimaliseert de operationele kosten voor deze testomgeving drastisch.
+* **WAF Cost Optimization & FinOps:** Om operationele kosten te minimaliseren voor deze testomgeving, is er gekozen voor de **Basic SKU** (prijs: \$0,19 per uur). Er is een strikte scheiding aangebracht tussen de permanente netwerkbasis (`01_base`) en de tijdelijke add-on schil (`02_addons`). Hierdoor kan Bastion aan het einde van de werkdag onafhankelijk worden vernietigd via de CI/CD-pipeline om kosten te elimineren, terwijl de netwerkbasis gratis behouden blijft.
