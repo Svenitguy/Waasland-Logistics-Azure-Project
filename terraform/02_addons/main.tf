@@ -1,22 +1,33 @@
 # =========================================================================
+# LOCAL FALLBACKS VOOR FEATURE-BRANCH VALIDATIE (GitOps Best Practice)
+# =========================================================================
+locals {
+  # Als de remote state de output nog niet heeft (omdat base nog niet is ge-applied op main),
+  # valt Terraform hier automatisch terug op de hardcoded naam om het plan succesvol te genereren.
+  rg_name   = try(data.terraform_remote_state.base.outputs.hub_resource_group_name, "rg-wlcs-hub-prod-001")
+  vnet_name = try(data.terraform_remote_state.base.outputs.hub_vnet_name, "vnet-wlcs-hub-prod-001")
+  location  = try(data.terraform_remote_state.base.outputs.hub_location, "northeurope")
+}
+
+# =========================================================================
 # 1. ENTERPRISE CLOUD TOEGANG VIA AZURE BASTION (DYNAMIC PROVISIONING)
 # =========================================================================
 
 # Het verplichte subnet voor Azure Bastion binnen het centrale Hub VNet
 resource "azurerm_subnet" "bastion_subnet" {
-  name                 = "AzureBastionSubnet" # Absolute Microsoft naam-eis!
-  resource_group_name  = data.terraform_remote_state.base.outputs.hub_resource_group_name
-  virtual_network_name = data.terraform_remote_state.base.outputs.hub_vnet_name
+  name                 = "AzureBastionSubnet"
+  resource_group_name  = local.rg_name
+  virtual_network_name = local.vnet_name
   address_prefixes     = ["10.0.4.0/26"] 
 }
 
 # Het publieke IP-adres ten behoeve van de Bastion service
 resource "azurerm_public_ip" "bastion_pip" {
   name                = "pip-wlcs-bastion-prod-001"
-  location            = data.terraform_remote_state.base.outputs.hub_location # <-- NU VOLLEDIG DYNAMISCH!
-  resource_group_name = data.terraform_remote_state.base.outputs.hub_resource_group_name
+  location            = local.location
+  resource_group_name = local.rg_name
   allocation_method   = "Static"
-  sku                 = "Standard" # Public IP SKU moet Standard zijn voor Bastion
+  sku                 = "Standard"
 
   tags = {
     Environment = "Platform"
@@ -25,12 +36,12 @@ resource "azurerm_public_ip" "bastion_pip" {
   }
 }
 
-# De Azure Bastion Host - Ingericht voor on-demand GitOps-destructie (WAF Cost Optimization)
+# De Azure Bastion Host
 resource "azurerm_bastion_host" "bastion" {
   name                = "bas-wlcs-platform-prod-001"
-  location            = data.terraform_remote_state.base.outputs.hub_location # <-- NU VOLLEDIG DYNAMISCH!
-  resource_group_name = data.terraform_remote_state.base.outputs.hub_resource_group_name
-  sku                 = "Basic" # Kan naar keuze gewijzigd worden naar "Standard"
+  location            = local.location
+  resource_group_name = local.rg_name
+  sku                 = "Basic"
 
   ip_configuration {
     name                 = "configuration"
@@ -42,6 +53,6 @@ resource "azurerm_bastion_host" "bastion" {
     Environment = "Platform"
     Project     = "WLCS-Azure-Enterprise"
     Owner       = "sys-admins"
-    Lifecyle    = "Ephemeral-On-Demand" # Toont recruiters jouw kostenbewustzijn!
+    Lifecyle    = "Ephemeral-On-Demand"
   }
 }

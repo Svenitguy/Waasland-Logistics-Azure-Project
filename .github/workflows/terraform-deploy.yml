@@ -14,9 +14,6 @@ permissions:
   contents: read
 
 jobs:
-  # =========================================================================
-  # JOB 1: VALIDATE & SECURITY SCAN
-  # =========================================================================
   validate:
     name: "1. Code Validation & Security"
     runs-on: ubuntu-latest
@@ -43,19 +40,18 @@ jobs:
           severity: 'HIGH,CRITICAL'
 
   # =========================================================================
-  # JOB 2: CORE BASE INFRASTRUCTURE (Draait Plan op Feature, Plan+Apply op Main)
+  # JOB 2: CORE BASE INFRASTRUCTURE
   # =========================================================================
   deploy_base:
     name: "2. Core Base Infrastructure"
     needs: validate
     runs-on: ubuntu-latest
-    # Alleen handmatige goedkeuring vragen als we daadwerkelijk naar main pushen/mergen
     environment: >-
       ${{ github.ref == 'refs/heads/main' && 'wlcs-infrastructure-production' || '' }}
     env:
       ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_PLATFORM }} # Koppeling met Platform-Prod
+      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_PLATFORM }}
       ARM_USE_OIDC: true
 
     steps:
@@ -87,19 +83,17 @@ jobs:
             -var "subscription_id_platform=${{ secrets.AZURE_SUBSCRIPTION_PLATFORM }}" \
             -var "subscription_id_dev=${{ secrets.AZURE_SUBSCRIPTION_DEV }}"
 
-      # Apply wordt UITSLUITEND uitgevoerd op de main branch
       - name: Terraform Apply (Base)
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' # Alleen op main echt uitvoeren!
         working-directory: ./terraform/01_base
         run: terraform apply -auto-approve tfplan_base
 
   # =========================================================================
-  # JOB 3: ADDONS & FEATURES (Wordt volledig overgeslagen op feature branches)
+  # JOB 3: ADDONS & FEATURES (Draait NU OOK PLAN op feature-branches!)
   # =========================================================================
   deploy_addons:
     name: "3. Addons & Features Deployment"
     needs: deploy_base
-    if: github.ref == 'refs/heads/main' # Zorgt ervoor dat addons pas plannen/applyen op main!
     runs-on: ubuntu-latest
     env:
       ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
@@ -127,12 +121,15 @@ jobs:
         working-directory: ./terraform/02_addons
         run: terraform init
 
+      # Genereert het plan voor Bastion op ALLES branches (dus ook jouw feature branch!)
       - name: Terraform Plan (Addons)
         working-directory: ./terraform/02_addons
         run: |
           terraform plan -out=tfplan_addons \
             -var "subscription_id_platform=${{ secrets.AZURE_SUBSCRIPTION_PLATFORM }}"
 
+      # Voert de echte apply voor Bastion UITSLUITEND uit op de main branch!
       - name: Terraform Apply (Addons)
+        if: github.ref == 'refs/heads/main'
         working-directory: ./terraform/02_addons
         run: terraform apply -auto-approve tfplan_addons
