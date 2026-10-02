@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - main
-      - feature/fase3-compute-bastion # <-- VOEG DIT TIJDELIJK TOE
+      - feature/**
     paths-ignore:
       - 'README.md'
       - 'docs/screenshots/**'
@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   # =========================================================================
-  # JOB 1: VALIDATE & SECURITY SCAN (Beide mappen scannen)
+  # JOB 1: VALIDATE & SECURITY SCAN
   # =========================================================================
   validate:
     name: "1. Code Validation & Security"
@@ -29,41 +29,77 @@ jobs:
         with:
           terraform_version: 1.5.7
 
-      # Validatie voor Laag 1: Base
-      - name: Terraform Init (Validation Base)
-        working-directory: ./terraform/01_base
-        run: terraform init -backend=false
+      - name: Terraform Init & Validate
+        run: |
+          cd ./terraform/01_base && terraform init -backend=false && terraform validate
+          cd ../02_addons && terraform init -backend=false && terraform validate
 
-      - name: Terraform Validate (Base)
-        working-directory: ./terraform/01_base
-        run: terraform validate
-
-      # Validatie voor Laag 2: Addons
-      - name: Terraform Init (Validation Addons)
-        working-directory: ./terraform/02_addons
-        run: terraform init -backend=false
-
-      - name: Terraform Validate (Addons)
-        working-directory: ./terraform/02_addons
-        run: terraform validate
-
-      # Trivy controleert de complete mappenstructuur op kwetsbaarheden
       - name: Run Trivy Security Scanner (IAC)
         uses: aquasecurity/trivy-action@master
         with:
           scan-type: 'config'
           scan-ref: './terraform'
-          hide-progress: false
-          format: 'table'
           exit-code: '1'
           severity: 'HIGH,CRITICAL'
 
   # =========================================================================
-  # JOB 2: TERRAFORM PLAN (Plannen genereren voor base en addons)
+  # JOB 2: CORE BASE INFRASTRUCTURE (Draait Plan op Feature, Plan+Apply op Main)
   # =========================================================================
-  plan:
-    name: "2. Terraform Security Plan"
+  deploy_base:
+    name: "2. Core Base Infrastructure"
     needs: validate
+    runs-on: ubuntu-latest
+    # Alleen handmatige goedkeuring vragen als we daadwerkelijk naar main pushen/mergen
+    environment: >-
+      ${{ github.ref == 'refs/heads/main' && 'wlcs-infrastructure-production' || '' }}
+    env:
+      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_PLATFORM }} # Koppeling met Platform-Prod
+      ARM_USE_OIDC: true
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.5.7
+
+      - name: Azure Login via OIDC
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_PLATFORM }}
+
+      - name: Terraform Init (Base)
+        working-directory: ./terraform/01_base
+        run: terraform init
+
+      - name: Terraform Plan (Base)
+        working-directory: ./terraform/01_base
+        run: |
+          terraform plan -out=tfplan_base \
+            -var "tenant_id=${{ secrets.AZURE_TENANT_ID }}" \
+            -var "client_id=${{ secrets.AZURE_CLIENT_ID }}" \
+            -var "subscription_id_platform=${{ secrets.AZURE_SUBSCRIPTION_PLATFORM }}" \
+            -var "subscription_id_dev=${{ secrets.AZURE_SUBSCRIPTION_DEV }}"
+
+      # Apply wordt UITSLUITEND uitgevoerd op de main branch
+      - name: Terraform Apply (Base)
+        if: github.ref == 'refs/heads/main'
+        working-directory: ./terraform/01_base
+        run: terraform apply -auto-approve tfplan_base
+
+  # =========================================================================
+  # JOB 3: ADDONS & FEATURES (Wordt volledig overgeslagen op feature branches)
+  # =========================================================================
+  deploy_addons:
+    name: "3. Addons & Features Deployment"
+    needs: deploy_base
+    if: github.ref == 'refs/heads/main' # Zorgt ervoor dat addons pas plannen/applyen op main!
     runs-on: ubuntu-latest
     env:
       ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
@@ -87,21 +123,6 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_PLATFORM }}
 
-      # --- PLAN BASE ---
-      - name: Terraform Init (Base)
-        working-directory: ./terraform/01_base
-        run: terraform init
-
-      - name: Terraform Plan (Base)
-        working-directory: ./terraform/01_base
-        run: |
-          terraform plan -out=tfplan_base \
-            -var "tenant_id=${{ secrets.AZURE_TENANT_ID }}" \
-            -var "client_id=${{ secrets.AZURE_CLIENT_ID }}" \
-            -var "subscription_id_platform=${{ secrets.AZURE_SUBSCRIPTION_PLATFORM }}" \
-            -var "subscription_id_dev=${{ secrets.AZURE_SUBSCRIPTION_DEV }}"
-
-      # --- PLAN ADDONS ---
       - name: Terraform Init (Addons)
         working-directory: ./terraform/02_addons
         run: terraform init
@@ -111,77 +132,6 @@ jobs:
         run: |
           terraform plan -out=tfplan_addons \
             -var "subscription_id_platform=${{ secrets.AZURE_SUBSCRIPTION_PLATFORM }}"
-
-      # Upload beide plannen als Artifacts
-      - name: Upload Base Plan Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: tfplan_base
-          path: ./terraform/01_base/tfplan_base
-          retention-days: 1
-
-      - name: Upload Addons Plan Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: tfplan_addons
-          path: ./terraform/02_addons/tfplan_addons
-          retention-days: 1
-
-  # =========================================================================
-  # JOB 3: TERRAFORM APPLY (Gegate met Handmatige Goedkeuring)
-  # =========================================================================
-  apply:
-    name: "3. Azure Infrastructure Apply"
-    needs: plan
-    runs-on: ubuntu-latest
-    environment: 
-      name: 'wlcs-infrastructure-production'
-    env:
-      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-      ARM_USE_OIDC: true
-
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: 1.5.7
-
-      - name: Azure Login via OIDC
-        uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_PLATFORM }}
-
-      # --- DEPLOY LAAG 1: BASE ---
-      - name: Download Base Plan Artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: tfplan_base
-          path: ./terraform/01_base
-
-      - name: Terraform Init (Base)
-        working-directory: ./terraform/01_base
-        run: terraform init
-
-      - name: Terraform Apply (Base)
-        working-directory: ./terraform/01_base
-        run: terraform apply -auto-approve tfplan_base
-
-      # --- DEPLOY LAAG 2: ADDONS ---
-      - name: Download Addons Plan Artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: tfplan_addons
-          path: ./terraform/02_addons
-
-      - name: Terraform Init (Addons)
-        working-directory: ./terraform/02_addons
-        run: terraform init
 
       - name: Terraform Apply (Addons)
         working-directory: ./terraform/02_addons
