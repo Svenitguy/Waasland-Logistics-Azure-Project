@@ -12,7 +12,7 @@ terraform {
     resource_group_name  = "rg-wlcs-tfstate-prod-001"
     storage_account_name = "stwlcstfstateprod001"
     container_name       = "tfstate"
-    key                  = "base/terraform.tfstate" # <-- GEWIJZIGD NAAR base/
+    key                  = "network.tfstate"
     use_oidc             = true              
   }
 }
