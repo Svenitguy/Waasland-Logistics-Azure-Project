@@ -1,21 +1,24 @@
-name: "WLCS - Terraform Enterprise Network Destroy"
+name: "WLCS - Azure Enterprise Infrastructure Destroy"
 
 on:
-  workflow_dispatch: # Dit zorgt voor de handmatige startknop in GitHub
+  workflow_dispatch: # Behoudt de grote handmatige startknop in de GitHub Actions UI!
+  schedule:
+    - cron: '0 17 * * 1-5' # AUTOMATISCHE TIMER: Draait elke maandag t/m vrijdag om 17:00 UTC (18:00 of 19:00 Belgische tijd)
 
 permissions:
   id-token: write
   contents: read
 
 jobs:
-  destroy:
-    name: "Azure Infrastructure Destroy"
+  destroy_addons:
+    name: "Destroy Costly Addons (Azure Bastion Only)"
     runs-on: ubuntu-latest
     environment: 
-      name: 'wlcs-infrastructure-production' # Behoudt de handmatige goedkeuring per mail/knop!
+      name: 'wlcs-infrastructure-production' # Handmatige goedkeuring via de GitHub Portal (Mail/Knop)
     env:
       ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_PLATFORM }} # <-- CRUCIAAL: Nodig om de remote state van Base te mogen lezen!
       ARM_USE_OIDC: true
 
     steps:
@@ -27,34 +30,20 @@ jobs:
         with:
           terraform_version: 1.5.7
 
-      # Stap 1: Login op het Platform Abonnement
-      - name: Azure Login Platform
+      - name: Azure Login via OIDC
         uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_PLATFORM }}
-          allow-no-subscriptions: true
 
-      # Stap 2: Registreer ook het Dev Abonnement binnen de Azure CLI context
-      - name: Azure Login Dev
-        uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_DEV }}
-          allow-no-subscriptions: true
-
-      - name: Terraform Init
-        working-directory: ./terraform
+      - name: Terraform Init (Addons)
+        working-directory: ./terraform/02_addons
         run: terraform init
 
-      # Stap 3: Volledig geautomatiseerde destroy over beide subscriptions heen
-      - name: Terraform Destroy
-        working-directory: ./terraform
+      # Vernietigt uitsluitend Bastion, het PIP en het Bastion Subnet. Core Base blijft 100% veilig.
+      - name: Terraform Destroy (Addons Only)
+        working-directory: ./terraform/02_addons
         run: |
           terraform destroy -auto-approve \
-            -var "tenant_id=${{ secrets.AZURE_TENANT_ID }}" \
-            -var "client_id=${{ secrets.AZURE_CLIENT_ID }}" \
-            -var "subscription_id_platform=${{ secrets.AZURE_SUBSCRIPTION_PLATFORM }}" \
-            -var "subscription_id_dev=${{ secrets.AZURE_SUBSCRIPTION_DEV }}"
+            -var "subscription_id_platform=${{ secrets.AZURE_SUBSCRIPTION_PLATFORM }}"

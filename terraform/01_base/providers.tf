@@ -1,9 +1,9 @@
 terraform {
-  required_version = ">= 1.5.0"
+  required_version = ">= 1.5.7"
   required_providers {
     azurerm = {
       source  = "hashicorp/azurerm"
-      version = ">= 3.70.0"
+      version = "~> 5.7.0"
     }
   }
 
@@ -12,8 +12,8 @@ terraform {
     resource_group_name  = "rg-wlcs-tfstate-prod-001"
     storage_account_name = "stwlcstfstateprod001"
     container_name       = "tfstate"
-    key                  = "network.tfstate" # De naam die het geheugenbestand in de cloud krijgt
-    use_oidc             = true              # Zorgt ervoor dat GitHub Actions wachtwoordloos via OIDC mag schrijven
+    key                  = "network.tfstate"
+    use_oidc             = true              
   }
 }
 

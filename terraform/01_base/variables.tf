@@ -1,6 +1,6 @@
 variable "location" {
   type        = string
-  default     = "northeurope" # Centraal beheerde regio voor de infrastructuur (Ierland)
+  default     = "northeurope"
   description = "De primaire Azure-regio voor Waasland Logistics"
 }
 
