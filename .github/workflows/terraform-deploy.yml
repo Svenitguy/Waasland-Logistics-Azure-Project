@@ -1,5 +1,4 @@
-
-name: "WLCS - Terraform Enterprise Network Deployment"
+name: "WLCS - Azure Enterprise Infrastructure Deployment"
 
 on:
   push:
@@ -7,7 +6,7 @@ on:
       - main
     paths-ignore:
       - 'README.md'
-      - 'screenshots/**'
+      - 'docs/screenshots/**'
 
 permissions:
   id-token: write
@@ -15,7 +14,7 @@ permissions:
 
 jobs:
   # =========================================================================
-  # JOB 1: VALIDATE & SECURITY SCAN (De Kwaliteitsbewaker)
+  # JOB 1: VALIDATE & SECURITY SCAN (Beide mappen scannen)
   # =========================================================================
   validate:
     name: "1. Code Validation & Security"
@@ -29,19 +28,25 @@ jobs:
         with:
           terraform_version: 1.5.7
 
-      - name: Terraform Format Check
-        working-directory: ./terraform
-        run: terraform fmt -check
-
-      - name: Terraform Init (Validation Only)
-        working-directory: ./terraform
+      # Validatie voor Laag 1: Base
+      - name: Terraform Init (Validation Base)
+        working-directory: ./terraform/01_base
         run: terraform init -backend=false
 
-      - name: Terraform Validate
-        working-directory: ./terraform
+      - name: Terraform Validate (Base)
+        working-directory: ./terraform/01_base
         run: terraform validate
 
-      # HIER IS TRIVY: Scant je IaC code vóórdat er verbinding met Azure wordt gemaakt
+      # Validatie voor Laag 2: Addons
+      - name: Terraform Init (Validation Addons)
+        working-directory: ./terraform/02_addons
+        run: terraform init -backend=false
+
+      - name: Terraform Validate (Addons)
+        working-directory: ./terraform/02_addons
+        run: terraform validate
+
+      # Trivy controleert de complete mappenstructuur op kwetsbaarheden
       - name: Run Trivy Security Scanner (IAC)
         uses: aquasecurity/trivy-action@master
         with:
@@ -53,7 +58,7 @@ jobs:
           severity: 'HIGH,CRITICAL'
 
   # =========================================================================
-  # JOB 2: TERRAFORM PLAN (Genereren en opslaan van wijzigingen)
+  # JOB 2: TERRAFORM PLAN (Plannen genereren voor base en addons)
   # =========================================================================
   plan:
     name: "2. Terraform Security Plan"
@@ -62,8 +67,7 @@ jobs:
     env:
       ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_PLATFORM }}
-      use_oidc: true
+      ARM_USE_OIDC: true
 
     steps:
       - name: Checkout Code
@@ -81,30 +85,48 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_PLATFORM }}
 
-      - name: Terraform Init
-        working-directory: ./terraform
+      # --- PLAN BASE ---
+      - name: Terraform Init (Base)
+        working-directory: ./terraform/01_base
         run: terraform init
 
-      # Genereer het plan en sla het op als 'tfplan' file
-      - name: Terraform Plan
-        working-directory: ./terraform
+      - name: Terraform Plan (Base)
+        working-directory: ./terraform/01_base
         run: |
-          terraform plan -out=tfplan \
+          terraform plan -out=tfplan_base \
             -var "tenant_id=${{ secrets.AZURE_TENANT_ID }}" \
             -var "client_id=${{ secrets.AZURE_CLIENT_ID }}" \
             -var "subscription_id_platform=${{ secrets.AZURE_SUBSCRIPTION_PLATFORM }}" \
             -var "subscription_id_dev=${{ secrets.AZURE_SUBSCRIPTION_DEV }}"
 
-      # Upload het plan zodat de Apply job exact ditzelfde bestand gebruikt
-      - name: Upload Terraform Plan Artifact
+      # --- PLAN ADDONS ---
+      - name: Terraform Init (Addons)
+        working-directory: ./terraform/02_addons
+        run: terraform init
+
+      - name: Terraform Plan (Addons)
+        working-directory: ./terraform/02_addons
+        run: |
+          terraform plan -out=tfplan_addons \
+            -var "subscription_id_platform=${{ secrets.AZURE_SUBSCRIPTION_PLATFORM }}"
+
+      # Upload beide plannen als Artifacts
+      - name: Upload Base Plan Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: tfplan
-          path: ./terraform/tfplan
+          name: tfplan_base
+          path: ./terraform/01_base/tfplan_base
+          retention-days: 1
+
+      - name: Upload Addons Plan Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan_addons
+          path: ./terraform/02_addons/tfplan_addons
           retention-days: 1
 
   # =========================================================================
-  # JOB 3: TERRAFORM APPLY (Beveiligd met Handmatige Goedkeuring)
+  # JOB 3: TERRAFORM APPLY (Gegate met Handmatige Goedkeuring)
   # =========================================================================
   apply:
     name: "3. Azure Infrastructure Apply"
@@ -115,8 +137,7 @@ jobs:
     env:
       ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_PLATFORM }}
-      use_oidc: true
+      ARM_USE_OIDC: true
 
     steps:
       - name: Checkout Code
@@ -134,18 +155,32 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_PLATFORM }}
 
-      # Download het exact goedgekeurde plan-bestand uit Job 2
-      - name: Download Terraform Plan Artifact
+      # --- DEPLOY LAAG 1: BASE ---
+      - name: Download Base Plan Artifact
         uses: actions/download-artifact@v4
         with:
-          name: tfplan
-          path: ./terraform
+          name: tfplan_base
+          path: ./terraform/01_base
 
-      - name: Terraform Init
-        working-directory: ./terraform
+      - name: Terraform Init (Base)
+        working-directory: ./terraform/01_base
         run: terraform init
 
-      # Voer de apply uit op basis van het beveiligde plan-bestand
-      - name: Terraform Apply
-        working-directory: ./terraform
-        run: terraform apply -auto-approve tfplan
+      - name: Terraform Apply (Base)
+        working-directory: ./terraform/01_base
+        run: terraform apply -auto-approve tfplan_base
+
+      # --- DEPLOY LAAG 2: ADDONS ---
+      - name: Download Addons Plan Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan_addons
+          path: ./terraform/02_addons
+
+      - name: Terraform Init (Addons)
+        working-directory: ./terraform/02_addons
+        run: terraform init
+
+      - name: Terraform Apply (Addons)
+        working-directory: ./terraform/02_addons
+        run: terraform apply -auto-approve tfplan_addons

@@ -1,18 +1,18 @@
-name: "WLCS - Terraform Enterprise Network Destroy"
+name: "WLCS - Azure Enterprise Infrastructure Destroy"
 
 on:
-  workflow_dispatch: # Dit zorgt voor de handmatige startknop in GitHub
+  workflow_dispatch: # Handmatige startknop in GitHub om 16:00 uur!
 
 permissions:
   id-token: write
   contents: read
 
 jobs:
-  destroy:
-    name: "Azure Infrastructure Destroy"
+  destroy_addons:
+    name: "Destroy Costly Addons (Azure Bastion Only)"
     runs-on: ubuntu-latest
     environment: 
-      name: 'wlcs-infrastructure-production' # Behoudt de handmatige goedkeuring per mail/knop!
+      name: 'wlcs-infrastructure-production' # Handmatige goedkeuring per mail/knop!
     env:
       ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
@@ -27,34 +27,19 @@ jobs:
         with:
           terraform_version: 1.5.7
 
-      # Stap 1: Login op het Platform Abonnement
       - name: Azure Login Platform
         uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_PLATFORM }}
-          allow-no-subscriptions: true
 
-      # Stap 2: Registreer ook het Dev Abonnement binnen de Azure CLI context
-      - name: Azure Login Dev
-        uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_DEV }}
-          allow-no-subscriptions: true
-
-      - name: Terraform Init
-        working-directory: ./terraform
+      - name: Terraform Init (Addons)
+        working-directory: ./terraform/02_addons
         run: terraform init
 
-      # Stap 3: Volledig geautomatiseerde destroy over beide subscriptions heen
-      - name: Terraform Destroy
-        working-directory: ./terraform
+      - name: Terraform Destroy (Addons Only)
+        working-directory: ./terraform/02_addons
         run: |
           terraform destroy -auto-approve \
-            -var "tenant_id=${{ secrets.AZURE_TENANT_ID }}" \
-            -var "client_id=${{ secrets.AZURE_CLIENT_ID }}" \
-            -var "subscription_id_platform=${{ secrets.AZURE_SUBSCRIPTION_PLATFORM }}" \
-            -var "subscription_id_dev=${{ secrets.AZURE_SUBSCRIPTION_DEV }}"
+            -var "subscription_id_platform=${{ secrets.AZURE_SUBSCRIPTION_PLATFORM }}"

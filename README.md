@@ -118,3 +118,41 @@ De volledige uitrol van de infrastructuur is gekoppeld aan een geautomatiseerde 
 ![GitHub Actions & Trivy Security Scan](docs/screenshots/12-fase2-trivy-security-scan.PNG)
 
 *Opmerking: Gevoelige Azure Subscription ID's, Tenant ID's, Object ID's en lokale computerpaden zijn op alle screenshots onleesbaar gemaakt conform cloud security best practices.*
+
+---
+
+## 🏗️ Fase 3: Compute, Storage & Bedrijfsapplicatie
+
+In deze fase wordt de logistieke bedrijfsapplicatie uitgerold binnen de Spoke-omgeving. Om strikt te voldoen aan de WAF-richtlijnen voor **Cost Optimization** en **Operational Excellence**, is de Terraform-infrastructuur volledig ontkoppeld (decoupled) in afzonderlijke, onafhankelijke lagen (stacks).
+
+### 📂 Enterprise Multi-Stack Mappenstructuur
+
+Dankzij deze modulaire pro-architectuur kunnen dure, tijdelijke cloudservices (zoals Azure Bastion) aan het einde van de werkdag onafhankelijk worden vernietigd via de CI/CD-pipeline om kosten te elimineren, terwijl de permanente netwerkbasis en virtuele machines veilig en gratis behouden blijven.
+
+```text
+terraform/
+│   .terraform.lock.hcl
+│   
+├───01_base/                        <-- Permanente basislaag (Netwerk fundering & VM's)
+│   │   main.tf
+│   │   outputs.tf
+│   │   providers.tf
+│   │   variables.tf
+│   │   
+│   └───modules/
+│       └───network/
+│               main.tf
+│               outputs.tf
+│               providers.tf
+│               variables.tf
+│               
+└───02_addons/                      <-- Tijdelijke laag (Dure resources zoals Azure Bastion)
+        data.tf
+        main.tf
+        providers.tf
+```
+
+### 🔒 Beveiligde Cloud Toegang via Azure Bastion
+Als eerste core-component binnen Fase 3 is een **Azure Bastion Host** geconfigureerd binnen het Platform Hub-netwerk. 
+* **WAF Security & Isolation:** Er worden geen publieke IP-adressen (PIP) gekoppeld aan de backend virtuele machines. Alle beheercommunicatie (RDP/SSH) verloopt volledig geïsoleerd en versleuteld over HTTPS via Azure Bastion.
+* **WAF Cost Optimization:** Er is resoluut gekozen voor de gloednieuwe **Developer SKU** van Azure Bastion. Dit elimineert de noodzaak voor een prijzig publiek IP-adres en minimaliseert de operationele kosten voor deze testomgeving drastisch.
