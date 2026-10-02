@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - feature/fase3-compute-bastion # <-- VOEG DIT TIJDELIJK TOE
     paths-ignore:
       - 'README.md'
       - 'docs/screenshots/**'
