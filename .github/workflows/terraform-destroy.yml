@@ -16,8 +16,7 @@ jobs:
     env:
       ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_PLATFORM }}
-      use_oidc: true
+      ARM_USE_OIDC: true
 
     steps:
       - name: Checkout Code
@@ -28,17 +27,29 @@ jobs:
         with:
           terraform_version: 1.5.7
 
-      - name: Azure Login via OIDC
+      # Stap 1: Login op het Platform Abonnement
+      - name: Azure Login Platform
         uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_PLATFORM }}
+          allow-no-subscriptions: true
+
+      # Stap 2: Registreer ook het Dev Abonnement binnen de Azure CLI context
+      - name: Azure Login Dev
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_DEV }}
+          allow-no-subscriptions: true
 
       - name: Terraform Init
         working-directory: ./terraform
         run: terraform init
 
+      # Stap 3: Volledig geautomatiseerde destroy over beide subscriptions heen
       - name: Terraform Destroy
         working-directory: ./terraform
         run: |

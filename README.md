@@ -29,7 +29,7 @@ Als eerste stap heb ik een robuuste beheerstructuur aufgezet met behulp van **Az
 ### Architectuur Bewijs (Portal Implementatie)
 Hieronder zie je de daadwerkelijke implementatie van deze hiërarchie binnen mijn Azure Tenant:
 
-![WLCS Beheergroepen Hiërarchie](docs/screenshots/01-fase1-management-groups.png)
+![WLCS Beheergroepen Hiërarchie](docs/screenshots/01-fase1-management-groups.PNG)
 
 ### Multi-Subscription & Omgevingsisolatie (CAF Best Practice)
 Om te voldoen aan de strikte isolatierichtlijnen van het Cloud Adoption Framework (CAF), is er gekozen voor een multi-subscription model onder één centraal factureringsaccount. De abonnementen zijn als volgt verdeeld en gekoppeld aan de governance-hiërarchie:
@@ -37,7 +37,7 @@ Om te voldoen aan de strikte isolatierichtlijnen van het Cloud Adoption Framewor
 - **WLCS-Platform-Prod** ➔ Gekoppeld aan `WLCS-Platform-MG` (Huisvest de centrale netwerkhub en gedeelde IT-services).
 - **WLCS-Logistics-Dev** ➔ Gekoppeld aan `WLCS-NonProd-MG` (Geïsoleerde sandbox-omgeving voor de ontwikkeling en test van de logistieke applicaties).
 
-![Enterprise Abonnementen Structuur](docs/screenshots/02-fase1-subscriptions-mapped.png)
+![Enterprise Abonnementen Structuur](docs/screenshots/02-fase1-subscriptions-mapped.PNG)
 
 ---
 
@@ -49,18 +49,18 @@ Om te voldoen aan de WAF-pijler **Security**, is toegang tot de cloudinfrastruct
 - **sec-wlcs-sys-admins** ➔ Heeft de rol `Virtual Machine Contributor` op de `WLCS-Workloads-MG`. Zij beheren computing workloads.
 - **sec-wlcs-security-auditors** ➔ Heeft de rol `Security Reader` op de `WLCS-Root-MG` voor compliance-audits.
 
-![Azure RBAC Toewijzing](docs/screenshots/06-fase1-rbac-assigned.png)
+![Azure RBAC Toewijzing](docs/screenshots/06-fase1-rbac-assigned.PNG)
 
 ### Geautomatiseerde Groepsynchronisatie (WAF Cost Optimization & Operational Excellence)
 Voor een realistische simulatie zijn **150 unieke Belgische medewerkers** via een bulk-import toegevoegd. Om onnodige licentiekosten in deze opstartfase te elimineren (WAF Cost Optimization), is er gekozen voor een geautomatiseerde **DevOps-workaround**.
 
 De afdelingsgroepen (`dept-wlcs-`) zijn ingesteld op het type `Toegewezen (Assigned)`. Vervolgens is de sortering volledig geautomatiseerd met een PowerShell-script (`scripts/sync-entra-users.ps1`) via de **Microsoft Graph PowerShell SDK**. Dit script leest de afdelings metadata uit en wijst gebruikers foutloos toe.
 
-![PowerShell Console Output](docs/screenshots/08-fase1-powershell-output.png)
+![PowerShell Console Output](docs/screenshots/08-fase1-powershell-output.PNG)
 
 Het resultaat is een enterprise-waardige, gevulde mappenstructuur met unieke gebruikers:
 
-![Entra ID Groepsleden Overzicht](docs/screenshots/07-fase1-group-members.png)
+![Entra ID Groepsleden Overzicht](docs/screenshots/07-fase1-group-members.PNG)
 
 ---
 
@@ -73,12 +73,12 @@ De volgende policies zijn met het effect `Standaard (Deny)` geactiveerd:
 - **WLCS - Toegestane locaties**: Garandeert dat alle resources binnen de primaire Azure-regio (`northeurope`) worden uitgerold om latency en cross-regio kosten te voorkomen.
 - **WLCS - Vereis Tag: Environment / Project / Owner**: Verplicht het labelen van alle resources voor cost management en operational excellence.
 
-![WLCS Azure Policy Overzicht](docs/screenshots/04-fase1-policy-assignments.png)
+![WLCS Azure Policy Overzicht](docs/screenshots/04-fase1-policy-assignments.PNG)
 
 ### 2. Regulatory Compliance & Europese Security Baseline (Audit-fase)
 Als Europese KMO moet Waasland Logistics voldoen aan de GDPR. Hiervoor is het **ISO/IEC 27001:2022 Regulatory Compliance**-initiatief (58 regels) toegewezen in `Audit-modus` om continu de security-compliance te monitoren.
 
-![WLCS Compliance Dashboard](docs/screenshots/05-fase1-compliance-dashboard.png)
+![WLCS Compliance Dashboard](docs/screenshots/05-fase1-compliance-dashboard.PNG)
 
 ---
 
