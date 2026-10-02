@@ -7,3 +7,8 @@ output "hub_resource_group_name" {
   value       = module.network.hub_rg_name
   description = "De Resource Group van het Hub netwerk."
 }
+
+output "hub_location" {
+  value       = module.network.hub_location
+  description = "De Azure-regio van de Hub."
+}
