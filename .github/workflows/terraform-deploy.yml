@@ -51,6 +51,7 @@ jobs:
     name: "2. Generate Speculative Plans"
     needs: validate
     runs-on: ubuntu-latest
+    environment: development # <-- HIER TOEGEVOEGD! Dit dwingt het stabiele omgevingspaspoort af.
     env:
       ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
