@@ -8,6 +8,7 @@ on:
     paths-ignore:
       - 'README.md'
       - 'docs/screenshots/**'
+  workflow_dispatch: # <-- STAP 1: Dit activeert de handmatige "Run workflow" startknop in GitHub!
 
 permissions:
   id-token: write
@@ -15,7 +16,7 @@ permissions:
 
 jobs:
   # =========================================================================
-  # JOB 1: VALIDATE & SECURITY SCAN (Draait altijd op elke push)
+  # JOB 1: VALIDATE & SECURITY SCAN (Draait altijd bij elke push)
   # =========================================================================
   validate:
     name: "1. Code Validation & Security"
@@ -29,7 +30,8 @@ jobs:
         with:
           terraform_version: 1.5.7
 
-      - name: Terraform Init & Validate (Base)
+      # Clean initialiseren en valideren met de herstelde paden (cd-methode)
+      - name: Terraform Init & Validate
         run: |
           cd ./terraform/01_base
           terraform init -backend=false -migrate-state=false
@@ -56,6 +58,7 @@ jobs:
     name: "2. Generate Speculative Plans"
     needs: validate
     runs-on: ubuntu-latest
+    environment: development # <-- HIER TOEGEVOEGD! Dit dwingt het stabiele omgevingspaspoort af.
     env:
       ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
@@ -110,14 +113,14 @@ jobs:
           retention-days: 1
 
   # =========================================================================
-  # JOB 3: CORE BASE DEPLOYMENT (Draait UITSLUITEND op main met GATE)
+  # JOB 3: CORE BASE DEPLOYMENT (Draait op main en vereist GOEDKEURING)
   # =========================================================================
   apply_base:
     name: "3. Apply Core Infrastructure"
     needs: generate_plans
     if: github.ref == 'refs/heads/main'
     environment: 
-      name: 'wlcs-infrastructure-production' # VRAAGT OM HANDMATIGE GOEDKEURING IN GITHUB!
+      name: 'wlcs-infrastructure-production' # Gated: Vraagt om handmatige goedkeuring!
     runs-on: ubuntu-latest
     env:
       ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
@@ -154,13 +157,14 @@ jobs:
           terraform apply -auto-approve tfplan_base
 
   # =========================================================================
-  # JOB 4: ADDONS DEPLOYMENT (BEVEILIGD MET FINOPS HARD LOCK)
+  # JOB 4: ADDONS DEPLOYMENT (BEVEILIGD: Alleen bij HANDMATIGE startknop)
   # =========================================================================
   apply_addons:
     name: "4. Apply Addons & Features"
     needs: apply_base 
-    # FINOPS BEVEILIGING BLIJFT ACTIEF: Staat op 'false' om ongewenste kosten te blokkeren op main!
-    if: github.ref == 'refs/heads/main' && false 
+    # STAP 2: Harde FinOps conditie! Deze job draait UITSLUITEND op main én ALS er handmatig op de startknop wordt geklikt!
+    # Bij een normale 'git push' wordt deze job dus altíjd veilig overgeslagen (skipped).
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     env:
       ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
