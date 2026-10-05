@@ -4,7 +4,11 @@ terraform {
     azurerm = {
       source                = "hashicorp/azurerm"
       version               = "~> 5.7.0"
-      configuration_aliases = [azurerm.hub, azurerm.dev] # Vertelt de module dat er twee subscriptions zijn
+      configuration_aliases = [azurerm.dev] # Dwingt het gebruik van de Dev subscription af
+    }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.9.1"
     }
   }
 }

@@ -13,7 +13,7 @@ terraform {
     storage_account_name = "stwlcstfstateprod001"
     container_name       = "tfstate"
     key                  = "network.tfstate"
-    use_oidc             = true              
+    use_oidc             = true
   }
 }
 

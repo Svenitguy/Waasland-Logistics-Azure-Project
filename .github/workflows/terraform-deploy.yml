@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - main
-      - feature/**
+      - "feature/**"
     paths-ignore:
       - 'README.md'
       - 'docs/screenshots/**'
@@ -33,8 +33,15 @@ jobs:
       # Clean initialiseren en valideren met de herstelde paden (cd-methode)
       - name: Terraform Init & Validate
         run: |
-          cd ./terraform/01_base && terraform init -backend=false && terraform validate
-          cd ../02_addons && terraform init -backend=false && terraform validate
+          cd ./terraform/01_base
+          terraform init -backend=false -migrate-state=false
+          terraform validate
+
+      - name: Terraform Init & Validate (Addons)
+        run: |
+          cd ./terraform/02_addons
+          terraform init -backend=false -migrate-state=false
+          terraform validate
 
       - name: Run Trivy Security Scanner (IAC)
         uses: aquasecurity/trivy-action@master
@@ -79,7 +86,7 @@ jobs:
           cd ./terraform/01_base
           terraform init
           terraform plan -out=tfplan_base \
-            -var "tenant_id=${{ secrets.AZURE_TENANT_ID }}" \
+            -var "tenant_id=${{ secrets.AZURE_CLIENT_ID }}" \
             -var "client_id=${{ secrets.AZURE_CLIENT_ID }}" \
             -var "subscription_id_platform=${{ secrets.AZURE_SUBSCRIPTION_PLATFORM }}" \
             -var "subscription_id_dev=${{ secrets.AZURE_SUBSCRIPTION_DEV }}"
