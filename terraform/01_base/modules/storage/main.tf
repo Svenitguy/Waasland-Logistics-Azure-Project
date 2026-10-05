@@ -1,11 +1,15 @@
-# 1. Unieke string genereren
+# =========================================================================
+# 1. UNIEKE STRING GENEREREN
+# =========================================================================
 resource "random_string" "storage_unique" {
   length  = 6
   special = false
   upper   = false
 }
 
-# 2. Het Cloud Storage Account (WAF Cost Optimized)
+# =========================================================================
+# 2. HET CLOUD STORAGE ACCOUNT (WAF Cost Optimized: LRS / Standaard)
+# =========================================================================
 resource "azurerm_storage_account" "logistics_storage" {
   provider                 = azurerm.dev
   name                     = "stwlcslogisticsdev${random_string.storage_unique.result}"
@@ -29,7 +33,9 @@ resource "azurerm_storage_account" "logistics_storage" {
   }
 }
 
-# 3. Azure Fileshare voor documenten
+# =========================================================================
+# 3. AZURE FILESHARE VOOR LOGISTIEKE DOCUMENTEN (Vrachtbrieven/Pakbonnen)
+# =========================================================================
 resource "azurerm_storage_share" "vrachtbrieven_share" {
   provider           = azurerm.dev
   name               = "vrachtbrieven-en-pakbonnen"
@@ -37,11 +43,22 @@ resource "azurerm_storage_share" "vrachtbrieven_share" {
   quota              = 50
 }
 
-# 4. Private DNS Zone voor File storage
+# =========================================================================
+# 4. PRIVATE DNS ZONE & VNET LINK (WAF Security / Governance Fix)
+# =========================================================================
+
+# Private DNS Zone voor File storage
 resource "azurerm_private_dns_zone" "storage_dns_zone" {
   provider            = azurerm.dev
   name                = "privatelink.file.core.windows.net"
   resource_group_name = var.dev_resource_group_name
+
+  # HIER TOEGEVOEGD: Tags om de Azure Policy tevreden te stellen!
+  tags = {
+    Environment = "Dev"
+    Project     = "WLCS-Logistics"
+    Owner       = "sys-admins"
+  }
 }
 
 # Link DNS aan het Spoke VNet
@@ -50,9 +67,18 @@ resource "azurerm_private_dns_zone_virtual_network_link" "dns_vnet_link" {
   name                = "link-st-dns-to-spoke-vnet"
   private_dns_zone_id = azurerm_private_dns_zone.storage_dns_zone.id
   virtual_network_id  = var.spoke_vnet_id
+
+  # HIER TOEGEVOEGD: Tags om de Azure Policy tevreden te stellen!
+  tags = {
+    Environment = "Dev"
+    Project     = "WLCS-Logistics"
+    Owner       = "sys-admins"
+  }
 }
 
-# 5. Het Private Endpoint in het App Subnet (WAF Security/Zero-Trust)
+# =========================================================================
+# 5. HET PRIVATE ENDPOINT IN HET APP SUBNET (WAF Security/Zero-Trust)
+# =========================================================================
 resource "azurerm_private_endpoint" "storage_private_endpoint" {
   provider            = azurerm.dev
   name                = "pe-st-logistics-file-dev-001"
@@ -70,5 +96,11 @@ resource "azurerm_private_endpoint" "storage_private_endpoint" {
   private_dns_zone_group {
     name                 = "dns-group-storage"
     private_dns_zone_ids = [azurerm_private_dns_zone.storage_dns_zone.id]
+  }
+
+  tags = {
+    Environment = "Dev"
+    Project     = "WLCS-Logistics"
+    Owner       = "sys-admins"
   }
 }
