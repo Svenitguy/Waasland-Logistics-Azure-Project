@@ -31,8 +31,8 @@ jobs:
 
       - name: Terraform Init & Validate
         run: |
-          cd ./terraform/01_base && terraform init -backend=false && terraform validate
-          cd ../02_addons && terraform init -backend=false && terraform validate
+          cd ./terraform/01_base && terraform init -backend=false -migrate-state=false && terraform validate
+          cd ../02_addons && terraform init -backend=false -migrate-state=false && terraform validate
 
       - name: Run Trivy Security Scanner (IAC)
         uses: aquasecurity/trivy-action@master
