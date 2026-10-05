@@ -71,21 +71,21 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_PLATFORM }}
 
-      # Plan Base
+      # Plan Base (We gebruiken nu 'cd' in plaats van working-directory)
       - name: Terraform Init & Plan (Base)
-        working-directory: ./terraform/01_base
         run: |
+          cd ./terraform/01_base
           terraform init
           terraform plan -out=tfplan_base \
-            -var "tenant_id=${{ secrets.AZURE_TENANT_ID }}" \
+            -var "tenant_id=${{ secrets.AZURE_CLIENT_ID }}" \
             -var "client_id=${{ secrets.AZURE_CLIENT_ID }}" \
             -var "subscription_id_platform=${{ secrets.AZURE_SUBSCRIPTION_PLATFORM }}" \
             -var "subscription_id_dev=${{ secrets.AZURE_SUBSCRIPTION_DEV }}"
 
-      # Plan Addons (Dankzij je try-fallback genereert dit nu direct de +3 resources voor Bastion!)
+      # Plan Addons (We gebruiken nu 'cd' in plaats van working-directory)
       - name: Terraform Init & Plan (Addons)
-        working-directory: ./terraform/02_addons
         run: |
+          cd ./terraform/02_addons
           terraform init
           terraform plan -out=tfplan_addons \
             -var "subscription_id_platform=${{ secrets.AZURE_SUBSCRIPTION_PLATFORM }}"
