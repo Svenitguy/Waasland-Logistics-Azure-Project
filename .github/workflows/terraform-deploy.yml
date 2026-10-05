@@ -1,3 +1,18 @@
+name: "WLCS - Azure Enterprise Infrastructure Deployment"
+
+on:
+  push:
+    branches:
+      - main
+      - "feature/**"
+    paths-ignore:
+      - 'README.md'
+      - 'docs/screenshots/**'
+
+permissions:
+  id-token: write
+  contents: read
+
 jobs:
   # =========================================================================
   # JOB 1: VALIDATE & SECURITY SCAN (Draait altijd)
