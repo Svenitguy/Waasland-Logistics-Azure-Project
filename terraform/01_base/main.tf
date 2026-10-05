@@ -1,17 +1,31 @@
-# Aanroepen van de netwerkmodule voor Waasland Logistics
+# =========================================================================
+# 1. CORE NETWERKINFRASTRUCTUUR (HUB-SPOKE TOPOLOGIE via module)
+# =========================================================================
 module "network" {
-  source = "./modules/network"
+  source = "./modules/network" # <-- Aangepast: van ../ naar ./
 
-  # Hier koppelen we de cross-subscription providers aan de module
   providers = {
-    azurerm.hub = azurerm     # De standaard provider koppelen aan de hub-alias binnen de module
-    azurerm.dev = azurerm.dev # De dev provider koppelen aan de dev-alias binnen de module
+    azurerm.hub = azurerm
+    azurerm.dev = azurerm.dev
   }
 
-  # HIER GEVEN WE DE LOCATIE DYNAMISCH DOOR VANUIT DE ROOT NAAR DE MODULE!
-  location = var.location
-
-  # Doorgeven van de abonnement-ID's vanuit de GitHub Secrets
+  location                 = var.location
   subscription_id_platform = var.subscription_id_platform
   subscription_id_dev      = var.subscription_id_dev
+}
+
+# =========================================================================
+# 2. COMPUTE, STORAGE & BEDRIJFSAPPLICATIE (STORAGE via module)
+# =========================================================================
+module "storage" {
+  source = "./modules/storage" # <-- Aangepast: van ../ naar ./
+
+  providers = {
+    azurerm.dev = azurerm.dev
+  }
+
+  location                = var.location
+  dev_resource_group_name = module.network.dev_resource_group_name
+  spoke_vnet_id           = module.network.spoke_vnet_id
+  app_subnet_id           = module.network.app_subnet_id
 }

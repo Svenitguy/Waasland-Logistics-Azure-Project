@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - main
-      - feature/**
+      - "feature/**"
     paths-ignore:
       - 'README.md'
       - 'docs/screenshots/**'
@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   # =========================================================================
-  # JOB 1: VALIDATE & SECURITY SCAN (Draait altijd)
+  # JOB 1: VALIDATE & SECURITY SCAN (Draait altijd op elke push)
   # =========================================================================
   validate:
     name: "1. Code Validation & Security"
@@ -29,10 +29,17 @@ jobs:
         with:
           terraform_version: 1.5.7
 
-      - name: Terraform Init & Validate
+      - name: Terraform Init & Validate (Base)
         run: |
-          cd ./terraform/01_base && terraform init -backend=false && terraform validate
-          cd ../02_addons && terraform init -backend=false && terraform validate
+          cd ./terraform/01_base
+          terraform init -backend=false -migrate-state=false
+          terraform validate
+
+      - name: Terraform Init & Validate (Addons)
+        run: |
+          cd ./terraform/02_addons
+          terraform init -backend=false -migrate-state=false
+          terraform validate
 
       - name: Run Trivy Security Scanner (IAC)
         uses: aquasecurity/trivy-action@master
@@ -71,26 +78,23 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_PLATFORM }}
 
-      # Plan Base
       - name: Terraform Init & Plan (Base)
-        working-directory: ./terraform/01_base
         run: |
+          cd ./terraform/01_base
           terraform init
           terraform plan -out=tfplan_base \
-            -var "tenant_id=${{ secrets.AZURE_TENANT_ID }}" \
+            -var "tenant_id=${{ secrets.AZURE_CLIENT_ID }}" \
             -var "client_id=${{ secrets.AZURE_CLIENT_ID }}" \
             -var "subscription_id_platform=${{ secrets.AZURE_SUBSCRIPTION_PLATFORM }}" \
             -var "subscription_id_dev=${{ secrets.AZURE_SUBSCRIPTION_DEV }}"
 
-      # Plan Addons (Dankzij je try-fallback genereert dit nu direct de +3 resources voor Bastion!)
       - name: Terraform Init & Plan (Addons)
-        working-directory: ./terraform/02_addons
         run: |
+          cd ./terraform/02_addons
           terraform init
           terraform plan -out=tfplan_addons \
             -var "subscription_id_platform=${{ secrets.AZURE_SUBSCRIPTION_PLATFORM }}"
 
-      # Upload de plannen als artifacts zodat de apply-jobs ze kunnen consumeren
       - name: Upload Base Plan Artifact
         uses: actions/upload-artifact@v4
         with:
@@ -111,9 +115,9 @@ jobs:
   apply_base:
     name: "3. Apply Core Infrastructure"
     needs: generate_plans
-    if: github.ref == 'refs/heads/main' # Harde blokkade op feature branches
+    if: github.ref == 'refs/heads/main'
     environment: 
-      name: 'wlcs-infrastructure-production' # VRAAGT OM HANDMATIGE GOEDKEURING!
+      name: 'wlcs-infrastructure-production' # VRAAGT OM HANDMATIGE GOEDKEURING IN GITHUB!
     runs-on: ubuntu-latest
     env:
       ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
@@ -144,18 +148,19 @@ jobs:
           path: ./terraform/01_base
 
       - name: Terraform Init & Apply (Base)
-        working-directory: ./terraform/01_base
         run: |
+          cd ./terraform/01_base
           terraform init
           terraform apply -auto-approve tfplan_base
 
   # =========================================================================
-  # JOB 4: ADDONS DEPLOYMENT (Volgt direct na de succesvolle deploy van Base)
+  # JOB 4: ADDONS DEPLOYMENT (BEVEILIGD MET FINOPS HARD LOCK)
   # =========================================================================
   apply_addons:
     name: "4. Apply Addons & Features"
-    needs: apply_base # Garandeert dat base eerst live staat en outputs heeft weggeschreven!
-    if: github.ref == 'refs/heads/main' # Harde blokkade op feature branches
+    needs: apply_base 
+    # FINOPS BEVEILIGING BLIJFT ACTIEF: Staat op 'false' om ongewenste kosten te blokkeren op main!
+    if: github.ref == 'refs/heads/main' && false 
     runs-on: ubuntu-latest
     env:
       ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
@@ -186,7 +191,7 @@ jobs:
           path: ./terraform/02_addons
 
       - name: Terraform Init & Apply (Addons)
-        working-directory: ./terraform/02_addons
         run: |
+          cd ./terraform/02_addons
           terraform init
           terraform apply -auto-approve tfplan_addons
