@@ -150,12 +150,15 @@ jobs:
           terraform apply -auto-approve tfplan_base
 
   # =========================================================================
-  # JOB 4: ADDONS DEPLOYMENT (Volgt direct na de succesvolle deploy van Base)
+  # JOB 4: ADDONS DEPLOYMENT (BEVEILIGD MET FINOPS HARD LOCK)
   # =========================================================================
   apply_addons:
     name: "4. Apply Addons & Features"
-    needs: apply_base # Garandeert dat base eerst live staat en outputs heeft weggeschreven!
-    if: github.ref == 'refs/heads/main' # Harde blokkade op feature branches
+    needs: apply_base 
+    # HIER IS DE FINOPS BEVEILIGING TOEGEVOEGD:
+    # 1. Moet op main draaien
+    # 2. Staat standaard op 'false' (disabled) om ongewenste Azure-kosten voor Bastion te blokkeren!
+    if: github.ref == 'refs/heads/main' && false 
     runs-on: ubuntu-latest
     env:
       ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
