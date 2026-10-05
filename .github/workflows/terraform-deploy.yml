@@ -1,18 +1,3 @@
-name: "WLCS - Azure Enterprise Infrastructure Deployment"
-
-on:
-  push:
-    branches:
-      - main
-      - feature/**
-    paths-ignore:
-      - 'README.md'
-      - 'docs/screenshots/**'
-
-permissions:
-  id-token: write
-  contents: read
-
 jobs:
   # =========================================================================
   # JOB 1: VALIDATE & SECURITY SCAN (Draait altijd)
@@ -29,10 +14,18 @@ jobs:
         with:
           terraform_version: 1.5.7
 
-      - name: Terraform Init & Validate
+      # Gewoon clean initialiseren en valideren per map
+      - name: Terraform Init & Validate (Base)
         run: |
-          cd ./terraform/01_base && terraform init -backend=false -migrate-state=false && terraform validate
-          cd ../02_addons && terraform init -backend=false -migrate-state=false && terraform validate
+          cd ./terraform/01_base
+          terraform init -backend=false -migrate-state=false
+          terraform validate
+
+      - name: Terraform Init & Validate (Addons)
+        run: |
+          cd ./terraform/02_addons
+          terraform init -backend=false -migrate-state=false
+          terraform validate
 
       - name: Run Trivy Security Scanner (IAC)
         uses: aquasecurity/trivy-action@master
@@ -71,7 +64,7 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_PLATFORM }}
 
-      # Plan Base (We gebruiken nu 'cd' in plaats van working-directory)
+      # Plan Base
       - name: Terraform Init & Plan (Base)
         run: |
           cd ./terraform/01_base
@@ -82,7 +75,7 @@ jobs:
             -var "subscription_id_platform=${{ secrets.AZURE_SUBSCRIPTION_PLATFORM }}" \
             -var "subscription_id_dev=${{ secrets.AZURE_SUBSCRIPTION_DEV }}"
 
-      # Plan Addons (We gebruiken nu 'cd' in plaats van working-directory)
+      # Plan Addons
       - name: Terraform Init & Plan (Addons)
         run: |
           cd ./terraform/02_addons
@@ -104,92 +97,3 @@ jobs:
           name: tfplan_addons
           path: ./terraform/02_addons/tfplan_addons
           retention-days: 1
-
-  # =========================================================================
-  # JOB 3: CORE BASE DEPLOYMENT (Draait UITSLUITEND op main met GATE)
-  # =========================================================================
-  apply_base:
-    name: "3. Apply Core Infrastructure"
-    needs: generate_plans
-    if: github.ref == 'refs/heads/main' # Harde blokkade op feature branches
-    environment: 
-      name: 'wlcs-infrastructure-production' # VRAAGT OM HANDMATIGE GOEDKEURING!
-    runs-on: ubuntu-latest
-    env:
-      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_PLATFORM }}
-      ARM_USE_OIDC: true
-
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: 1.5.7
-
-      - name: Azure Login via OIDC
-        uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_PLATFORM }}
-
-      - name: Download Base Plan Artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: tfplan_base
-          path: ./terraform/01_base
-
-      - name: Terraform Init & Apply (Base)
-        working-directory: ./terraform/01_base
-        run: |
-          terraform init
-          terraform apply -auto-approve tfplan_base
-
-  # =========================================================================
-  # JOB 4: ADDONS DEPLOYMENT (BEVEILIGD MET FINOPS HARD LOCK)
-  # =========================================================================
-  apply_addons:
-    name: "4. Apply Addons & Features"
-    needs: apply_base 
-    # HIER IS DE FINOPS BEVEILIGING TOEGEVOEGD:
-    # 1. Moet op main draaien
-    # 2. Staat standaard op 'false' (disabled) om ongewenste Azure-kosten voor Bastion te blokkeren!
-    if: github.ref == 'refs/heads/main' && false 
-    runs-on: ubuntu-latest
-    env:
-      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_PLATFORM }}
-      ARM_USE_OIDC: true
-
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: 1.5.7
-
-      - name: Azure Login via OIDC
-        uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_PLATFORM }}
-
-      - name: Download Addons Plan Artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: tfplan_addons
-          path: ./terraform/02_addons
-
-      - name: Terraform Init & Apply (Addons)
-        working-directory: ./terraform/02_addons
-        run: |
-          terraform init
-          terraform apply -auto-approve tfplan_addons

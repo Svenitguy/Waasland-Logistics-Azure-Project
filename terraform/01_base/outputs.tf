@@ -31,6 +31,6 @@ output "app_subnet_id" {
 }
 
 output "dev_resource_group_name" {
-  value       = module.network.dev_resource_group_name  # <-- Dit moet "dev_resource_group_name" zijn!
+  value       = module.network.dev_resource_group_name # <-- Dit moet "dev_resource_group_name" zijn!
   description = "De Resource Group van de Dev workloads."
 }

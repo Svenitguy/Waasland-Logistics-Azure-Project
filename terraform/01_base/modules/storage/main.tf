@@ -7,7 +7,7 @@ resource "random_string" "storage_unique" {
 
 # 2. Het Cloud Storage Account (WAF Cost Optimized)
 resource "azurerm_storage_account" "logistics_storage" {
-  provider                 = azurerm.dev 
+  provider                 = azurerm.dev
   name                     = "stwlcslogisticsdev${random_string.storage_unique.result}"
   resource_group_name      = var.dev_resource_group_name
   location                 = var.location
@@ -34,7 +34,7 @@ resource "azurerm_storage_share" "vrachtbrieven_share" {
   provider           = azurerm.dev
   name               = "vrachtbrieven-en-pakbonnen"
   storage_account_id = azurerm_storage_account.logistics_storage.id
-  quota              = 50 
+  quota              = 50
 }
 
 # 4. Private DNS Zone voor File storage

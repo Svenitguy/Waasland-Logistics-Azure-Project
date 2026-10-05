@@ -18,7 +18,7 @@ resource "azurerm_subnet" "bastion_subnet" {
   name                 = "AzureBastionSubnet"
   resource_group_name  = local.rg_name
   virtual_network_name = local.vnet_name
-  address_prefixes     = ["10.0.4.0/26"] 
+  address_prefixes     = ["10.0.4.0/26"]
 }
 
 # Het publieke IP-adres ten behoeve van de Bastion service
