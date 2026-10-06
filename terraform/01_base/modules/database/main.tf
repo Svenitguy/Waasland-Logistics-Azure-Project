@@ -45,15 +45,12 @@ resource "azurerm_key_vault_secret" "admin_password_secret" {
 resource "azurerm_mssql_server" "sql_server" {
   name                         = "sql-wlcs-logistics-dev-001"
   resource_group_name          = var.dev_resource_group_name
-  location                     = var.location
+  location                     = "westeurope"
   version                      = "12.0"
   administrator_login          = "wlcsdbadmin"
   administrator_login_password = random_password.vm_password.result
   minimum_tls_version          = "1.2"
 
-  # CRUCIAL FINOPS & SECURITY TIP:
-  # Standaard staat de Azure SQL Server open voor het publieke internet.
-  # Met dit argument dwing je af dat de database ALLEEN via Private Endpoints bereikbaar is.
   public_network_access_enabled = false 
 
   tags = {
