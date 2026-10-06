@@ -64,8 +64,6 @@ jobs:
       ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
       ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_PLATFORM }}
       ARM_USE_OIDC: true
-      # VOEG DEZE REGEL TOE: Dit dwingt Terraform om de certificaat-contactcheck over te slaan
-      ARM_KEYVAULT_BYPASS_CERTIFICATE_CONTACTS_ERROR: "true" 
 
     steps:
       - name: Checkout Code
@@ -92,6 +90,9 @@ jobs:
             -var "client_id=${{ secrets.AZURE_CLIENT_ID }}" \
             -var "subscription_id_platform=${{ secrets.AZURE_SUBSCRIPTION_PLATFORM }}" \
             -var "subscription_id_dev=${{ secrets.AZURE_SUBSCRIPTION_DEV }}"
+        # DIT BLOK ZORGT DAT DE KEYVAULT CHECK HIER DIRECT EN VEILIG WORDT OVERGESLAGEN:
+        env:
+          ARM_KEYVAULT_BYPASS_CERTIFICATE_CONTACTS_ERROR: "true"
 
       - name: Terraform Init & Plan (Addons)
         run: |
@@ -129,8 +130,6 @@ jobs:
       ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
       ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_PLATFORM }}
       ARM_USE_OIDC: true
-      # VOEG DEZE REGEL OOK HIER TOE:
-      ARM_KEYVAULT_BYPASS_CERTIFICATE_CONTACTS_ERROR: "true" 
 
     steps:
       - name: Checkout Code
@@ -159,6 +158,9 @@ jobs:
           cd ./terraform/01_base
           terraform init
           terraform apply -auto-approve tfplan_base
+        # DIT BLOK ZORGT DAT DE KEYVAULT CHECK OOK HIER LIVE TIJDENS DE APPLY WORDT OVERGESLAGEN:
+        env:
+          ARM_KEYVAULT_BYPASS_CERTIFICATE_CONTACTS_ERROR: "true"
 
   # =========================================================================
   # JOB 4: ADDONS DEPLOYMENT (BEVEILIGD: Alleen bij HANDMATIGE startknop)
@@ -166,8 +168,6 @@ jobs:
   apply_addons:
     name: "4. Apply Addons & Features"
     needs: apply_base 
-    # STAP 2: Harde FinOps conditie! Deze job draait UITSLUITEND op main én ALS er handmatig op de startknop wordt geklikt!
-    # Bij een normale 'git push' wordt deze job dus altíjd veilig overgeslagen (skipped).
     if: github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     env:

@@ -8,7 +8,7 @@ resource "azurerm_key_vault" "kmo_vault" {
   name                        = "kv-wlcs-log-dev-001"
   location                    = var.location
   resource_group_name         = var.dev_resource_group_name
-  tenant_id                   = data.azurerm_client_config.current.tenant_id # <-- DYNAMISCH VIA DE PROVIDER GEREGELD
+  tenant_id                   = data.azurerm_client_config.current.tenant_id 
   sku_name                    = "standard"
   purge_protection_enabled    = true # BEST PRACTICE: Beschermt tegen per ongeluk definitief verwijderen
   rbac_authorization_enabled = true
@@ -43,12 +43,12 @@ resource "azurerm_key_vault_secret" "admin_password_secret" {
 }
 
 # =========================================================================
-# 2. AZURE SQL DATABASE (FinOps Serverless met Auto-Pause)
+# 2. AZURE SQL DATABASE (Budgetvriendelijke Enterprise DTU-laag)
 # =========================================================================
 resource "azurerm_mssql_server" "sql_server" {
   name                         = "sql-wlcs-logistics-dev-001"
   resource_group_name          = var.dev_resource_group_name
-  location                     = "westeurope"
+  location                     = var.location # <-- HERSTELD: Terug naar northeurope conform de rest van je netwerk
   version                      = "12.0"
   administrator_login          = "wlcsdbadmin"
   administrator_login_password = random_password.vm_password.result
@@ -68,11 +68,10 @@ resource "azurerm_mssql_database" "kmo_db" {
   server_id    = azurerm_mssql_server.sql_server.id
   collation    = "SQL_Latin1_General_CP1_CI_AS"
   license_type = "BasePrice"
-  max_size_gb  = 5
+  max_size_gb  = 2 # Ruimschoots voldoende voor je KMO test-omgeving
 
-  sku_name     = "GP_S_Gen5_1" 
-  min_capacity = 0.5           
-  auto_pause_delay_in_minutes = 60 
+  # AANGEPAST NAAR BASIC: Omzeilt de serverless restricties in Noord-Europa
+  sku_name     = "Basic" 
 
   tags = {
     Environment = "Dev"
