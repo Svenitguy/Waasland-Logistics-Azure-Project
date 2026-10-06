@@ -35,3 +35,15 @@ output "dev_resource_group_name" {
   value       = azurerm_resource_group.rg_dev.name
   description = "De Resource Group naam van de Dev workload-omgeving."
 }
+
+# --- HIERONDER TOEGEVOEGD VOOR COUPLING MET DATABASE & PRIVATE ENDPOINTS ---
+
+output "web_subnet_id" {
+  value       = azurerm_subnet.snet_web.id
+  description = "Het resource ID van het Web Subnet."
+}
+
+output "db_subnet_id" {
+  value       = azurerm_subnet.snet_db.id
+  description = "Het resource ID van het geïsoleerde Database Subnet."
+}
