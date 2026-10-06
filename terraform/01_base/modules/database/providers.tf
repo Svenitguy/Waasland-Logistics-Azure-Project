@@ -4,6 +4,7 @@ terraform {
     azurerm = {
       source  = "hashicorp/azurerm"
       version = "~> 5.7.0"
+      configuration_aliases = [ azurerm, azurerm.dev ] # <-- DIT VERPLICHT DE ALIASES BINNEN DE MODULE
     }
     random = {
       source  = "hashicorp/random"

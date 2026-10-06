@@ -36,8 +36,10 @@ module "storage" {
 module "database" {
   source = "./modules/database"
 
+  # DIT IS DE CRUCIALE EMTERPRISE OPSET: geef de module toegang tot beide scopes
   providers = {
-    azurerm = azurerm.dev
+    azurerm      = azurerm     # De standaard provider (Platform/OIDC Hub context)
+    azurerm.dev  = azurerm.dev # De specifieke Dev workload provider
   }
 
   location                = var.location
