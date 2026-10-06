@@ -14,6 +14,12 @@ permissions:
   id-token: write
   contents: read
 
+# =========================================================================
+# GLOBAAL OMGEVINGSBLOK (Dwingt de Key Vault bypass af voor de gehele pipeline)
+# =========================================================================
+env:
+  ARM_KEYVAULT_BYPASS_CERTIFICATE_CONTACTS_ERROR: "true"
+
 jobs:
   # =========================================================================
   # JOB 1: VALIDATE & SECURITY SCAN (Draait altijd bij elke push)
