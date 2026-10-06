@@ -16,7 +16,7 @@ permissions:
 
 jobs:
   # =========================================================================
-  # JOB 1: VALIDATE & SECURITY SCAN
+  # JOB 1: VALIDATE & SECURITY SCAN (Draait altijd bij elke push)
   # =========================================================================
   validate:
     name: "1. Code Validation & Security"
@@ -30,6 +30,7 @@ jobs:
         with:
           terraform_version: 1.5.7
 
+      # Clean initialiseren en valideren met de herstelde paden (cd-methode)
       - name: Terraform Init & Validate
         run: |
           cd ./terraform/01_base
@@ -51,7 +52,7 @@ jobs:
           severity: 'HIGH,CRITICAL'
 
   # =========================================================================
-  # JOB 2: TERRAFORM SPECULATIVE PLANS
+  # JOB 2: TERRAFORM SPECULATIVE PLANS (Draait op feature-branches én main)
   # =========================================================================
   generate_plans:
     name: "2. Generate Speculative Plans"
@@ -80,13 +81,13 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_PLATFORM }}
 
-      # PRO STEP: Haal het IP-adres van de runner op en zet de Key Vault tijdelijk open
+      # PRO STEP: Haal het IP-adres van de runner op en zet de Key Vault tijdelijk open via de Azure CLI
       - name: Whitelist GitHub Runner IP
         run: |
-          RUNNER_IP=$(curl -s https://ipify.org)
+          RUNNER_IP=$(curl -sL https://ipify.org || curl -sL https://amazonaws.com)
           echo "Runner IP is $RUNNER_IP"
           az keyvault network-rule add --name "kv-wlcs-log-dev-001" --resource-group "rg-wlcs-logistics-dev-001" --ip-address "$RUNNER_IP"
-          sleep 10 # Wacht tot Azure de regel heeft verwerkt
+          sleep 15
 
       - name: Terraform Init & Plan (Base)
         run: |
@@ -109,7 +110,7 @@ jobs:
       - name: Remove GitHub Runner IP
         if: always()
         run: |
-          RUNNER_IP=$(curl -s https://ipify.org)
+          RUNNER_IP=$(curl -sL https://ipify.org || curl -sL https://amazonaws.com)
           az keyvault network-rule remove --name "kv-wlcs-log-dev-001" --resource-group "rg-wlcs-logistics-dev-001" --ip-address "$RUNNER_IP"
 
       - name: Upload Base Plan Artifact
@@ -164,12 +165,12 @@ jobs:
           name: tfplan_base
           path: ./terraform/01_base
 
-      # PRO STEP: Ook tijdens de apply moet de runner er heel even in
+      # PRO STEP: Ook tijdens de live apply moet de runner er heel even in
       - name: Whitelist GitHub Runner IP for Apply
         run: |
-          RUNNER_IP=$(curl -s https://ipify.org)
+          RUNNER_IP=$(curl -sL https://ipify.org || curl -sL https://amazonaws.com)
           az keyvault network-rule add --name "kv-wlcs-log-dev-001" --resource-group "rg-wlcs-logistics-dev-001" --ip-address "$RUNNER_IP"
-          sleep 10
+          sleep 15
 
       - name: Terraform Init & Apply (Base)
         run: |
@@ -177,15 +178,15 @@ jobs:
           terraform init
           terraform apply -auto-approve tfplan_base
 
-      # PRO STEP: Sluit de kluis onmiddellijk weer af
+      # PRO STEP: Sluit de kluis onmiddellijk weer af na de apply
       - name: Remove GitHub Runner IP after Apply
         if: always()
         run: |
-          RUNNER_IP=$(curl -s https://ipify.org)
+          RUNNER_IP=$(curl -sL https://ipify.org || curl -sL https://amazonaws.com)
           az keyvault network-rule remove --name "kv-wlcs-log-dev-001" --resource-group "rg-wlcs-logistics-dev-001" --ip-address "$RUNNER_IP"
 
   # =========================================================================
-  # JOB 4: ADDONS DEPLOYMENT
+  # JOB 4: ADDONS DEPLOYMENT (BEVEILIGD: Alleen bij HANDMATIGE startknop)
   # =========================================================================
   apply_addons:
     name: "4. Apply Addons & Features"
