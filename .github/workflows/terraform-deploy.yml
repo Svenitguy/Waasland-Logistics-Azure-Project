@@ -81,14 +81,6 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_PLATFORM }}
 
-      # PRO STEP: Haal het IP-adres van de runner op en zet de Key Vault tijdelijk open via de Azure CLI
-      - name: Whitelist GitHub Runner IP
-        run: |
-          RUNNER_IP=$(curl -sL https://ipify.org || curl -sL https://amazonaws.com)
-          echo "Runner IP is $RUNNER_IP"
-          az keyvault network-rule add --name "kv-wlcs-log-dev-001" --resource-group "rg-wlcs-logistics-dev-001" --ip-address "$RUNNER_IP"
-          sleep 15
-
       - name: Terraform Init & Plan (Base)
         run: |
           cd ./terraform/01_base
@@ -105,13 +97,6 @@ jobs:
           terraform init
           terraform plan -out=tfplan_addons \
             -var "subscription_id_platform=${{ secrets.AZURE_SUBSCRIPTION_PLATFORM }}"
-
-      # PRO STEP: Sluit de firewall direct weer netjes af na het genereren van het plan
-      - name: Remove GitHub Runner IP
-        if: always()
-        run: |
-          RUNNER_IP=$(curl -sL https://ipify.org || curl -sL https://amazonaws.com)
-          az keyvault network-rule remove --name "kv-wlcs-log-dev-001" --resource-group "rg-wlcs-logistics-dev-001" --ip-address "$RUNNER_IP"
 
       - name: Upload Base Plan Artifact
         uses: actions/upload-artifact@v4
@@ -165,25 +150,11 @@ jobs:
           name: tfplan_base
           path: ./terraform/01_base
 
-      # PRO STEP: Ook tijdens de live apply moet de runner er heel even in
-      - name: Whitelist GitHub Runner IP for Apply
-        run: |
-          RUNNER_IP=$(curl -sL https://ipify.org || curl -sL https://amazonaws.com)
-          az keyvault network-rule add --name "kv-wlcs-log-dev-001" --resource-group "rg-wlcs-logistics-dev-001" --ip-address "$RUNNER_IP"
-          sleep 15
-
       - name: Terraform Init & Apply (Base)
         run: |
           cd ./terraform/01_base
           terraform init
           terraform apply -auto-approve tfplan_base
-
-      # PRO STEP: Sluit de kluis onmiddellijk weer af na de apply
-      - name: Remove GitHub Runner IP after Apply
-        if: always()
-        run: |
-          RUNNER_IP=$(curl -sL https://ipify.org || curl -sL https://amazonaws.com)
-          az keyvault network-rule remove --name "kv-wlcs-log-dev-001" --resource-group "rg-wlcs-logistics-dev-001" --ip-address "$RUNNER_IP"
 
   # =========================================================================
   # JOB 4: ADDONS DEPLOYMENT (BEVEILIGD: Alleen bij HANDMATIGE startknop)

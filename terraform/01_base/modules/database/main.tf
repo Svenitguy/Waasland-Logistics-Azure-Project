@@ -1,50 +1,16 @@
-# Dit blok haalt de clientgegevens op uit de standaard (Platform) provider context
-data "azurerm_client_config" "current" {}
-
 # =========================================================================
-# 1. AZURE KEY VAULT (Beveiligd via je officiële GitHub Tenant Secret)
+# 1. ADMINISTRATOR CREDENTIALS GENERATION
 # =========================================================================
-resource "azurerm_key_vault" "kmo_vault" {
-  name                        = "kv-wlcs-log-dev-001"
-  location                    = var.location
-  resource_group_name         = var.dev_resource_group_name
-  tenant_id                   = var.tenant_id # <-- DIT IS DE FIX! We gebruiken de keiharde, veilige variabele.
-  sku_name                    = "standard"
-  purge_protection_enabled    = true 
-  rbac_authorization_enabled = true
-
-  # DIT BLOK VERHELPT DE CRITICAL TRIVY BEVINDING (AZU-0013)
-  network_acls {
-    bypass         = "AzureServices"
-    default_action = "Deny"
-    ip_rules       = [] 
-    virtual_network_subnet_ids = []
-  }
-
-  tags = {
-    Environment = "Dev"
-    Project     = "WLCS-Logistics"
-    Owner       = "sys-admins"
-  }
-}
-
 resource "random_password" "vm_password" {
   length           = 16
   special          = true
   override_special = "!#$%&*()-_=+[]{}<>:?"
 }
 
-resource "azurerm_key_vault_secret" "admin_password_secret" {
-  name         = "vms-admin-password"
-  value        = random_password.vm_password.result
-  key_vault_id = azurerm_key_vault.kmo_vault.id
-}
-
 # =========================================================================
-# 2. AZURE SQL DATABASE (Gekoppeld aan azurerm.dev provider)
+# 2. AZURE SQL DATABASE (Budgetvriendelijke Enterprise DTU-laag)
 # =========================================================================
 resource "azurerm_mssql_server" "sql_server" {
-  provider                     = azurerm.dev # <-- UITDRUKKELIJK VIA DEV ABONNEMENT
   name                         = "sql-wlcs-logistics-dev-001"
   resource_group_name          = var.dev_resource_group_name
   location                     = var.location 
@@ -63,7 +29,6 @@ resource "azurerm_mssql_server" "sql_server" {
 }
 
 resource "azurerm_mssql_database" "kmo_db" {
-  provider     = azurerm.dev # <-- UITDRUKKELIJK VIA DEV ABONNEMENT
   name         = "db-wlcs-logistics-dev"
   server_id    = azurerm_mssql_server.sql_server.id
   collation    = "SQL_Latin1_General_CP1_CI_AS"
@@ -80,33 +45,9 @@ resource "azurerm_mssql_database" "kmo_db" {
 }
 
 # =========================================================================
-# 3. PRIVATE DNS ZONES & LINKS (Gekoppeld aan azurerm.dev provider)
+# 3. PRIVATE DNS ZONES & LINKS FOR SQL
 # =========================================================================
-resource "azurerm_private_dns_zone" "kv_dns_zone" {
-  provider            = azurerm.dev
-  name                = "privatelink.vaultcore.azure.net"
-  resource_group_name = var.dev_resource_group_name
-  tags = {
-    Environment = "Dev"
-    Project     = "WLCS-Logistics"
-    Owner       = "sys-admins"
-  }
-}
-
-resource "azurerm_private_dns_zone_virtual_network_link" "kv_dns_link" {
-  provider              = azurerm.dev
-  name                  = "link-kv-dns-to-spoke-vnet"
-  private_dns_zone_id   = azurerm_private_dns_zone.kv_dns_zone.id
-  virtual_network_id    = var.spoke_vnet_id
-  tags = {
-    Environment = "Dev"
-    Project     = "WLCS-Logistics"
-    Owner       = "sys-admins"
-  }
-}
-
 resource "azurerm_private_dns_zone" "sql_dns_zone" {
-  provider            = azurerm.dev
   name                = "privatelink.database.windows.net"
   resource_group_name = var.dev_resource_group_name
   tags = {
@@ -117,7 +58,6 @@ resource "azurerm_private_dns_zone" "sql_dns_zone" {
 }
 
 resource "azurerm_private_dns_zone_virtual_network_link" "sql_dns_link" {
-  provider              = azurerm.dev
   name                  = "link-sql-dns-to-spoke-vnet"
   private_dns_zone_id   = azurerm_private_dns_zone.sql_dns_zone.id
   virtual_network_id    = var.spoke_vnet_id
@@ -129,35 +69,9 @@ resource "azurerm_private_dns_zone_virtual_network_link" "sql_dns_link" {
 }
 
 # =========================================================================
-# 4. PRIVATE ENDPOINTS (Gekoppeld aan azurerm.dev provider)
+# 4. PRIVATE ENDPOINT FOR SQL (Zero-Trust Data Protection)
 # =========================================================================
-resource "azurerm_private_endpoint" "kv_private_endpoint" {
-  provider            = azurerm.dev
-  name                = "pe-kv-wlcs-logistics-dev-001"
-  location            = var.location
-  resource_group_name = var.dev_resource_group_name
-  subnet_id           = var.app_subnet_id
-
-  private_service_connection {
-    name                           = "psc-kv-wlcs-logistics"
-    private_connection_resource_id = azurerm_key_vault.kmo_vault.id
-    is_manual_connection           = false
-    subresource_names              = ["vault"]
-  }
-
-  private_dns_zone_group {
-    name                 = "dns-group-keyvault"
-    private_dns_zone_ids = [azurerm_private_dns_zone.kv_dns_zone.id]
-  }
-  tags = {
-    Environment = "Dev"
-    Project     = "WLCS-Logistics"
-    Owner       = "sys-admins"
-  }
-}
-
 resource "azurerm_private_endpoint" "sql_private_endpoint" {
-  provider            = azurerm.dev
   name                = "pe-sql-wlcs-logistics-dev-001"
   location            = var.location
   resource_group_name = var.dev_resource_group_name
