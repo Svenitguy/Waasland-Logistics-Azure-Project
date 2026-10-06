@@ -7,7 +7,6 @@ terraform {
     }
   }
 
-  # HIERMEE VERTELLEN WE TERRAFORM DAT JOUW STATEFILE IN AZURE STAAT
   backend "azurerm" {
     resource_group_name  = "rg-wlcs-tfstate-prod-001"
     storage_account_name = "stwlcstfstateprod001"
@@ -17,18 +16,26 @@ terraform {
   }
 }
 
-# De standaard provider (voor het Platform / de Hub)
 provider "azurerm" {
-  features {}
+  features {
+    key_vault {
+      purge_soft_delete_on_destroy    = true
+      recover_soft_deleted_key_vaults = true
+    }
+  }
   use_oidc                        = true
   subscription_id                 = var.subscription_id_platform
   resource_provider_registrations = "core"
 }
 
-# De extra provider voor de Dev Workloads (met een alias)
 provider "azurerm" {
   alias                           = "dev"
-  features {}
+  features {
+    key_vault {
+      purge_soft_delete_on_destroy    = true
+      recover_soft_deleted_key_vaults = true
+    }
+  }
   use_oidc                        = true
   subscription_id                 = var.subscription_id_dev
   resource_provider_registrations = "core"
