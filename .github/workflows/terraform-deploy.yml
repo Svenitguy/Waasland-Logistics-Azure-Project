@@ -8,21 +8,15 @@ on:
     paths-ignore:
       - 'README.md'
       - 'docs/screenshots/**'
-  workflow_dispatch: # <-- STAP 1: Dit activeert de handmatige "Run workflow" startknop in GitHub!
+  workflow_dispatch:
 
 permissions:
   id-token: write
   contents: read
 
-# =========================================================================
-# GLOBAAL OMGEVINGSBLOK (Dwingt de Key Vault bypass af voor de gehele pipeline)
-# =========================================================================
-env:
-  ARM_KEYVAULT_BYPASS_CERTIFICATE_CONTACTS_ERROR: "true"
-
 jobs:
   # =========================================================================
-  # JOB 1: VALIDATE & SECURITY SCAN (Draait altijd bij elke push)
+  # JOB 1: VALIDATE & SECURITY SCAN
   # =========================================================================
   validate:
     name: "1. Code Validation & Security"
@@ -36,7 +30,6 @@ jobs:
         with:
           terraform_version: 1.5.7
 
-      # Clean initialiseren en valideren met de herstelde paden (cd-methode)
       - name: Terraform Init & Validate
         run: |
           cd ./terraform/01_base
@@ -58,7 +51,7 @@ jobs:
           severity: 'HIGH,CRITICAL'
 
   # =========================================================================
-  # JOB 2: TERRAFORM SPECULATIVE PLANS (Draait op feature-branches én main)
+  # JOB 2: TERRAFORM SPECULATIVE PLANS
   # =========================================================================
   generate_plans:
     name: "2. Generate Speculative Plans"
@@ -87,6 +80,14 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_PLATFORM }}
 
+      # PRO STEP: Haal het IP-adres van de runner op en zet de Key Vault tijdelijk open
+      - name: Whitelist GitHub Runner IP
+        run: |
+          RUNNER_IP=$(curl -s https://ipify.org)
+          echo "Runner IP is $RUNNER_IP"
+          az keyvault network-rule add --name "kv-wlcs-log-dev-001" --resource-group "rg-wlcs-logistics-dev-001" --ip-address "$RUNNER_IP"
+          sleep 10 # Wacht tot Azure de regel heeft verwerkt
+
       - name: Terraform Init & Plan (Base)
         run: |
           cd ./terraform/01_base
@@ -103,6 +104,13 @@ jobs:
           terraform init
           terraform plan -out=tfplan_addons \
             -var "subscription_id_platform=${{ secrets.AZURE_SUBSCRIPTION_PLATFORM }}"
+
+      # PRO STEP: Sluit de firewall direct weer netjes af na het genereren van het plan
+      - name: Remove GitHub Runner IP
+        if: always()
+        run: |
+          RUNNER_IP=$(curl -s https://ipify.org)
+          az keyvault network-rule remove --name "kv-wlcs-log-dev-001" --resource-group "rg-wlcs-logistics-dev-001" --ip-address "$RUNNER_IP"
 
       - name: Upload Base Plan Artifact
         uses: actions/upload-artifact@v4
@@ -156,14 +164,28 @@ jobs:
           name: tfplan_base
           path: ./terraform/01_base
 
+      # PRO STEP: Ook tijdens de apply moet de runner er heel even in
+      - name: Whitelist GitHub Runner IP for Apply
+        run: |
+          RUNNER_IP=$(curl -s https://ipify.org)
+          az keyvault network-rule add --name "kv-wlcs-log-dev-001" --resource-group "rg-wlcs-logistics-dev-001" --ip-address "$RUNNER_IP"
+          sleep 10
+
       - name: Terraform Init & Apply (Base)
         run: |
           cd ./terraform/01_base
           terraform init
           terraform apply -auto-approve tfplan_base
 
+      # PRO STEP: Sluit de kluis onmiddellijk weer af
+      - name: Remove GitHub Runner IP after Apply
+        if: always()
+        run: |
+          RUNNER_IP=$(curl -s https://ipify.org)
+          az keyvault network-rule remove --name "kv-wlcs-log-dev-001" --resource-group "rg-wlcs-logistics-dev-001" --ip-address "$RUNNER_IP"
+
   # =========================================================================
-  # JOB 4: ADDONS DEPLOYMENT (BEVEILIGD: Alleen bij HANDMATIGE startknop)
+  # JOB 4: ADDONS DEPLOYMENT
   # =========================================================================
   apply_addons:
     name: "4. Apply Addons & Features"
