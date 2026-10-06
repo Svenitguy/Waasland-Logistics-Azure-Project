@@ -2,17 +2,18 @@
 data "azurerm_client_config" "current" {}
 
 # =========================================================================
-# 1. AZURE KEY VAULT (Geverifieerd via hoofd-provider context)
+# 1. AZURE KEY VAULT (Beveiligd via je officiële GitHub Tenant Secret)
 # =========================================================================
 resource "azurerm_key_vault" "kmo_vault" {
   name                        = "kv-wlcs-log-dev-001"
   location                    = var.location
   resource_group_name         = var.dev_resource_group_name
-  tenant_id                   = data.azurerm_client_config.current.tenant_id 
+  tenant_id                   = var.tenant_id # <-- DIT IS DE FIX! We gebruiken de keiharde, veilige variabele.
   sku_name                    = "standard"
   purge_protection_enabled    = true 
   rbac_authorization_enabled = true
 
+  # DIT BLOK VERHELPT DE CRITICAL TRIVY BEVINDING (AZU-0013)
   network_acls {
     bypass         = "AzureServices"
     default_action = "Deny"
