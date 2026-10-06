@@ -20,14 +20,16 @@ terraform {
 # De standaard provider (voor het Platform / de Hub)
 provider "azurerm" {
   features {}
-  use_oidc        = true
-  subscription_id = var.subscription_id_platform
+  use_oidc                        = true
+  subscription_id                 = var.subscription_id_platform
+  resource_provider_registrations = "core"
 }
 
 # De extra provider voor de Dev Workloads (met een alias)
 provider "azurerm" {
-  alias = "dev"
+  alias                           = "dev"
   features {}
-  use_oidc        = true
-  subscription_id = var.subscription_id_dev
+  use_oidc                        = true
+  subscription_id                 = var.subscription_id_dev
+  resource_provider_registrations = "core"
 }
