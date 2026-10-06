@@ -11,6 +11,7 @@ resource "random_password" "vm_password" {
 # 2. AZURE SQL DATABASE (Budgetvriendelijke Enterprise DTU-laag)
 # =========================================================================
 resource "azurerm_mssql_server" "sql_server" {
+  provider                     = azurerm.dev
   name                         = "sql-wlcs-logistics-dev-001"
   resource_group_name          = var.dev_resource_group_name
   location                     = var.location 
@@ -72,6 +73,7 @@ resource "azurerm_private_dns_zone_virtual_network_link" "sql_dns_link" {
 # 4. PRIVATE ENDPOINT FOR SQL (Zero-Trust Data Protection)
 # =========================================================================
 resource "azurerm_private_endpoint" "sql_private_endpoint" {
+  provider            = azurerm.dev
   name                = "pe-sql-wlcs-logistics-dev-001"
   location            = var.location
   resource_group_name = var.dev_resource_group_name
