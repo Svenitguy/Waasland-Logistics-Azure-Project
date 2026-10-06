@@ -58,12 +58,14 @@ jobs:
     name: "2. Generate Speculative Plans"
     needs: validate
     runs-on: ubuntu-latest
-    environment: development # <-- HIER TOEGEVOEGD! Dit dwingt het stabiele omgevingspaspoort af.
+    environment: development
     env:
       ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
       ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_PLATFORM }}
       ARM_USE_OIDC: true
+      # VOEG DEZE REGEL TOE: Dit dwingt Terraform om de certificaat-contactcheck over te slaan
+      ARM_KEYVAULT_BYPASS_CERTIFICATE_CONTACTS_ERROR: "true" 
 
     steps:
       - name: Checkout Code
@@ -120,13 +122,15 @@ jobs:
     needs: generate_plans
     if: github.ref == 'refs/heads/main'
     environment: 
-      name: 'wlcs-infrastructure-production' # Gated: Vraagt om handmatige goedkeuring!
+      name: 'wlcs-infrastructure-production'
     runs-on: ubuntu-latest
     env:
       ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
       ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_PLATFORM }}
       ARM_USE_OIDC: true
+      # VOEG DEZE REGEL OOK HIER TOE:
+      ARM_KEYVAULT_BYPASS_CERTIFICATE_CONTACTS_ERROR: "true" 
 
     steps:
       - name: Checkout Code
