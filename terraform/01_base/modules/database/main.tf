@@ -7,8 +7,16 @@ resource "azurerm_key_vault" "kmo_vault" {
   resource_group_name         = var.dev_resource_group_name
   tenant_id                   = var.tenant_id
   sku_name                    = "standard"
-  purge_protection_enabled    = false
+  purge_protection_enabled    = true # BEST PRACTICE: Beschermt tegen per ongeluk definitief verwijderen
   rbac_authorization_enabled = true
+
+  # DIT BLOK VERHELPT DE CRITICAL TRIVY BEVINDING (AZU-0013)
+  network_acls {
+    bypass         = "AzureServices"
+    default_action = "Deny"
+    ip_rules       = [] 
+    virtual_network_subnet_ids = []
+  }
 
   tags = {
     Environment = "Dev"
@@ -42,6 +50,11 @@ resource "azurerm_mssql_server" "sql_server" {
   administrator_login          = "wlcsdbadmin"
   administrator_login_password = random_password.vm_password.result
   minimum_tls_version          = "1.2"
+
+  # CRUCIAL FINOPS & SECURITY TIP:
+  # Standaard staat de Azure SQL Server open voor het publieke internet.
+  # Met dit argument dwing je af dat de database ALLEEN via Private Endpoints bereikbaar is.
+  public_network_access_enabled = false 
 
   tags = {
     Environment = "Dev"
