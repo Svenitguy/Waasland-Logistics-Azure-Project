@@ -1,3 +1,6 @@
+# Dit blok haalt automatisch de actieve abonnement- en tenantgegevens op uit de gekoppelde Azure provider
+data "azurerm_client_config" "current" {}
+
 # =========================================================================
 # 1. AZURE KEY VAULT (WAF Security - Centraal Geheimenbeheer - Azure v5.x Syntax)
 # =========================================================================
@@ -5,7 +8,7 @@ resource "azurerm_key_vault" "kmo_vault" {
   name                        = "kv-wlcs-log-dev-001"
   location                    = var.location
   resource_group_name         = var.dev_resource_group_name
-  tenant_id                   = var.tenant_id
+  tenant_id                   = data.azurerm_client_config.current.tenant_id # <-- DYNAMISCH VIA DE PROVIDER GEREGELD
   sku_name                    = "standard"
   purge_protection_enabled    = true # BEST PRACTICE: Beschermt tegen per ongeluk definitief verwijderen
   rbac_authorization_enabled = true
