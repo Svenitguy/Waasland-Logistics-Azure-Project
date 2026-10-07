@@ -36,13 +36,15 @@ module "storage" {
 module "database" {
   source = "./modules/database"
 
-  # DIT IS DE CRUCIALE EMTERPRISE OPSET: geef de module toegang tot beide scopes
+  # GECORRIGEERD: De AzAPI provider is nu expliciet doorgelust naar de child module
   providers = {
     azurerm      = azurerm     # De standaard provider (Platform/OIDC Hub context)
     azurerm.dev  = azurerm.dev # De specifieke Dev workload provider
+    azapi        = azapi       # Koppelt de geavanceerde Microsoft REST-API provider door
   }
 
-  location                = var.location
+  # CAF RESILIENCE FIX: Database wijkt uit naar West-Europa, netwerk blijft in Noord-Europa
+  location                = "westeurope" 
   dev_resource_group_name = module.network.dev_resource_group_name
   tenant_id               = var.tenant_id
 
