@@ -8,7 +8,7 @@ resource "random_password" "vm_password" {
 }
 
 # =========================================================================
-# 2. AZURE SQL DATABASE (Budgetvriendelijke Enterprise DTU-laag)
+# 2. AZURE SQL DATABASE (Geüpgraded naar GP Serverless om regioblokkade te omzeilen)
 # =========================================================================
 resource "azurerm_mssql_server" "sql_server" {
   provider                     = azurerm.dev
@@ -34,9 +34,14 @@ resource "azurerm_mssql_database" "kmo_db" {
   server_id    = azurerm_mssql_server.sql_server.id
   collation    = "SQL_Latin1_General_CP1_CI_AS"
   license_type = "BasePrice"
-  max_size_gb  = 2 
+  max_size_gb  = 32 # Verhoogd naar 32GB (vereist voor General Purpose)
 
-  sku_name     = "Basic" 
+  # ENTERPRISE SERVERLESS SKU: Dwingt Azure om compute-capaciteit toe te wijzen
+  sku_name     = "GP_S_Gen5_1" 
+  min_capacity = 0.5           
+  
+  # FinOps Auto-Pause: Schakelt zichzelf uit na 1 uur inactiviteit (kost dan €0!)
+  auto_pause_delay_in_minutes = 60 
 
   tags = {
     Environment = "Dev"
@@ -77,7 +82,7 @@ resource "azurerm_private_endpoint" "sql_private_endpoint" {
   name                = "pe-sql-wlcs-logistics-dev-001"
   location            = var.location
   resource_group_name = var.dev_resource_group_name
-  subnet_id           = var.db_subnet_id
+  subnet_id           = var.db_subnet_id # Behoudt netjes jouw db_subnet_id variabele
 
   private_service_connection {
     name                           = "psc-sql-wlcs-logistics"
