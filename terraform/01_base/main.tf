@@ -43,8 +43,8 @@ module "database" {
     azapi        = azapi       # Koppelt de geavanceerde Microsoft REST-API provider door
   }
 
-  # CAF RESILIENCE FIX: Database wijkt uit naar West-Europa, netwerk blijft in Noord-Europa
-  location                = "westeurope" 
+  # CAF & POLICY RESILIENCE FIX: Database wijkt uit naar België omdat Ierland/Amsterdam vol zitten
+  location                = "belgiumcentral" 
   dev_resource_group_name = module.network.dev_resource_group_name
   tenant_id               = var.tenant_id
 

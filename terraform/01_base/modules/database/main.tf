@@ -14,7 +14,7 @@ resource "azurerm_mssql_server" "sql_server" {
   provider                     = azurerm.dev
   name                         = "sql-wlcs-logistics-dev-free-001" 
   resource_group_name          = var.dev_resource_group_name
-  location                     = "westeurope" # WAF Resilience: We wijken uit naar West-Europa (of belgiumcentral) wegens capaciteit
+  location                     = var.location # GECORRIGEERD: Neemt nu dynamisch "belgiumcentral" over van de root-aanroep
   version                      = "12.0"
   administrator_login          = "wlcsdbadmin"
   administrator_login_password = random_password.vm_password.result
@@ -33,10 +33,10 @@ resource "azurerm_mssql_server" "sql_server" {
 # 3. AZURE SQL DATABASE VIA AZAPI (Dwingt het Free Offer af via Code!)
 # =========================================================================
 resource "azapi_resource" "kmo_db" {
-  type      = "Microsoft.Sql/servers/databases@2022-08-01-preview"
-  name      = "db-wlcs-logistics-dev"
-  parent_id = azurerm_mssql_server.sql_server.id
-  location  = "westeurope" # Moet matchen met de server locatie
+  type                      = "Microsoft.Sql/servers/databases@2022-08-01-preview"
+  name                      = "db-wlcs-logistics-dev"
+  parent_id                 = azurerm_mssql_server.sql_server.id
+  location                  = "belgiumcentral" # GECORRIGEERD: Hardcoded op België gezet om te matchen met de server
   schema_validation_enabled = false
 
   body = {
@@ -46,13 +46,12 @@ resource "azapi_resource" "kmo_db" {
       family = "Gen5"
     }
     properties = {
-      # DIT IS DE GEHEIME SLEUTEL DIE JE VIA GOOGLE VOND:
       useFreeLimit                 = true
       freeLimitExhaustionBehavior  = "AutoPause"
       autoPauseDelayInMinutes      = 60
       minCapacity                  = 0.5
       collation                    = "SQL_Latin1_General_CP1_CI_AS"
-      maxSizeBytes                 = 34359738368 # 32 GB in bytes (vereist door AzAPI)
+      maxSizeBytes                 = 34359738368 # 32 GB
     }
   }
 
@@ -93,7 +92,7 @@ resource "azurerm_private_dns_zone_virtual_network_link" "sql_dns_link" {
 resource "azurerm_private_endpoint" "sql_private_endpoint" {
   provider            = azurerm.dev
   name                = "pe-sql-wlcs-logistics-dev-001"
-  location            = "westeurope" # Private endpoint wordt gekoppeld aan de server in West-Europa
+  location            = var.location # GECORRIGEERD: Het private endpoint landt nu ook veilig in belgiumcentral
   resource_group_name = var.dev_resource_group_name
   subnet_id           = var.db_subnet_id 
 
