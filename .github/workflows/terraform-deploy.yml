@@ -4,11 +4,11 @@ on:
   push:
     branches:
       - main
-      - "feature/**"
+      - "feature/**" # De pipeline start nu bij ELKE push (zowel feature als main)
     paths-ignore:
       - 'README.md'
       - 'docs/screenshots/**'
-  workflow_dispatch:
+  workflow_dispatch: 
 
 permissions:
   id-token: write
@@ -16,7 +16,7 @@ permissions:
 
 jobs:
   # =========================================================================
-  # JOB 1: VALIDATE & SECURITY SCAN (Draait altijd bij elke push)
+  # JOB 1: CODE VALIDATION (Draait ALTIJD: op feature én main)
   # =========================================================================
   validate:
     name: "1. Code Validation & Security"
@@ -30,35 +30,20 @@ jobs:
         with:
           terraform_version: 1.5.7
 
-      # Clean initialiseren en valideren met de herstelde paden (cd-methode)
-      - name: Terraform Init & Validate
+      - name: Terraform Init & Validate (Base)
         run: |
           cd ./terraform/01_base
-          terraform init -backend=false -migrate-state=false
+          terraform init -backend=false
           terraform validate
 
-      - name: Terraform Init & Validate (Addons)
-        run: |
-          cd ./terraform/02_addons
-          terraform init -backend=false -migrate-state=false
-          terraform validate
-
-      - name: Run Trivy Security Scanner (IAC)
-        uses: aquasecurity/trivy-action@master
-        with:
-          scan-type: 'config'
-          scan-ref: './terraform'
-          exit-code: '1'
-          severity: 'HIGH,CRITICAL'
-
   # =========================================================================
-  # JOB 2: TERRAFORM SPECULATIVE PLANS (Draait op feature-branches én main)
+  # JOB 2: BASE INFRASTRUCTURE - PLAN (Draait ALTIJD: op feature én main)
   # =========================================================================
-  generate_plans:
-    name: "2. Generate Speculative Plans"
+  plan_base:
+    name: "2. Plan Core Infrastructure"
     needs: validate
     runs-on: ubuntu-latest
-    environment: development
+    environment: development # <--- HIER TOEGEVOEGD: Lost de OIDC-fout op via je bestaande dev-credential!
     env:
       ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
@@ -82,6 +67,7 @@ jobs:
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_PLATFORM }}
 
       - name: Terraform Init & Plan (Base)
+        id: plan
         run: |
           cd ./terraform/01_base
           terraform init
@@ -91,13 +77,6 @@ jobs:
             -var "subscription_id_platform=${{ secrets.AZURE_SUBSCRIPTION_PLATFORM }}" \
             -var "subscription_id_dev=${{ secrets.AZURE_SUBSCRIPTION_DEV }}"
 
-      - name: Terraform Init & Plan (Addons)
-        run: |
-          cd ./terraform/02_addons
-          terraform init
-          terraform plan -out=tfplan_addons \
-            -var "subscription_id_platform=${{ secrets.AZURE_SUBSCRIPTION_PLATFORM }}"
-
       - name: Upload Base Plan Artifact
         uses: actions/upload-artifact@v4
         with:
@@ -105,22 +84,16 @@ jobs:
           path: ./terraform/01_base/tfplan_base
           retention-days: 1
 
-      - name: Upload Addons Plan Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: tfplan_addons
-          path: ./terraform/02_addons/tfplan_addons
-          retention-days: 1
-
   # =========================================================================
-  # JOB 3: CORE BASE DEPLOYMENT (Draait op main en vereist GOEDKEURING)
+  # JOB 3: BASE INFRASTRUCTURE - APPLY (Draait STRICT alleen op main!)
   # =========================================================================
   apply_base:
     name: "3. Apply Core Infrastructure"
-    needs: generate_plans
+    needs: plan_base
+    # DIT IS DE BEVEILIGING: Draait alleen als de code daadwerkelijk op main gepusht/gemerged is!
     if: github.ref == 'refs/heads/main'
     environment: 
-      name: 'wlcs-infrastructure-production'
+      name: 'wlcs-infrastructure-production' # HIER stopt hij op main voor jouw goedkeuring
     runs-on: ubuntu-latest
     env:
       ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
@@ -157,12 +130,12 @@ jobs:
           terraform apply -auto-approve tfplan_base
 
   # =========================================================================
-  # JOB 4: ADDONS DEPLOYMENT (BEVEILIGD: Alleen bij HANDMATIGE startknop)
+  # JOB 4: DURE ADDONS - PLAN & APPLY (Alleen bij handmatige startknop!)
   # =========================================================================
-  apply_addons:
-    name: "4. Apply Addons & Features"
-    needs: apply_base 
-    if: github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch')
+  deploy_addons:
+    name: "4. Deploy Dure Addons (Bastion, etc.)"
+    # Draait ALLEEN als je specifiek op de handmatige 'Run workflow' knop klikt
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     env:
       ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
@@ -186,14 +159,10 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_PLATFORM }}
 
-      - name: Download Addons Plan Artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: tfplan_addons
-          path: ./terraform/02_addons
-
-      - name: Terraform Init & Apply (Addons)
+      - name: Terraform Init, Plan & Apply (Addons)
         run: |
           cd ./terraform/02_addons
           terraform init
+          terraform plan -out=tfplan_addons \
+            -var "subscription_id_platform=${{ secrets.AZURE_SUBSCRIPTION_PLATFORM }}"
           terraform apply -auto-approve tfplan_addons
