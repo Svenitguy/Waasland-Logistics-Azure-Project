@@ -8,11 +8,11 @@ resource "random_password" "vm_password" {
 }
 
 # =========================================================================
-# 2. AZURE SQL DATABASE (Geüpgraded naar GP Serverless om regioblokkade te omzeilen)
+# 2. AZURE SQL SERVER & DATABASE (Gekoppeld aan de Serverless Free Offer)
 # =========================================================================
 resource "azurerm_mssql_server" "sql_server" {
   provider                     = azurerm.dev
-  name                         = "sql-wlcs-logistics-dev-001"
+  name                         = "sql-wlcs-logistics-dev-free-001" # GEWIJZIGD: Unieke naam om conflicten met je handmatige test te voorkomen!
   resource_group_name          = var.dev_resource_group_name
   location                     = var.location 
   version                      = "12.0"
@@ -34,13 +34,13 @@ resource "azurerm_mssql_database" "kmo_db" {
   server_id    = azurerm_mssql_server.sql_server.id
   collation    = "SQL_Latin1_General_CP1_CI_AS"
   license_type = "BasePrice"
-  max_size_gb  = 32 # Verhoogd naar 32GB (vereist voor General Purpose)
+  max_size_gb  = 32 # Verplicht 32GB voor de Serverless / Free Tier configuratie
 
-  # ENTERPRISE SERVERLESS SKU: Dwingt Azure om compute-capaciteit toe te wijzen
+  # ENTERPRISE SERVERLESS SKU: Matcht exact met je succesvolle portal-validatie
   sku_name     = "GP_S_Gen5_1" 
   min_capacity = 0.5           
   
-  # FinOps Auto-Pause: Schakelt zichzelf uit na 1 uur inactiviteit (kost dan €0!)
+  # FinOps Auto-Pause: Schakelt zichzelf na 1 uur inactiviteit uit naar €0 compute-kosten!
   auto_pause_delay_in_minutes = 60 
 
   tags = {
@@ -82,7 +82,7 @@ resource "azurerm_private_endpoint" "sql_private_endpoint" {
   name                = "pe-sql-wlcs-logistics-dev-001"
   location            = var.location
   resource_group_name = var.dev_resource_group_name
-  subnet_id           = var.db_subnet_id # Behoudt netjes jouw db_subnet_id variabele
+  subnet_id           = var.db_subnet_id 
 
   private_service_connection {
     name                           = "psc-sql-wlcs-logistics"
@@ -101,3 +101,4 @@ resource "azurerm_private_endpoint" "sql_private_endpoint" {
     Owner       = "sys-admins"
   }
 }
+
