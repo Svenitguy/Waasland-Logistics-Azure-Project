@@ -30,13 +30,13 @@ resource "azurerm_mssql_server" "sql_server" {
 }
 
 # =========================================================================
-# 3. AZURE SQL DATABASE VIA AZAPI (Dwingt het Free Offer af via Code!)
+# 3. AZURE SQL DATABASE VIA AZAPI (Reguliere Serverless - FinOps Optimized)
 # =========================================================================
 resource "azapi_resource" "kmo_db" {
   type                      = "Microsoft.Sql/servers/databases@2022-08-01-preview"
   name                      = "db-wlcs-logistics-dev"
   parent_id                 = azurerm_mssql_server.sql_server.id
-  location                  = "belgiumcentral" # GECORRIGEERD: Hardcoded op België gezet om te matchen met de server
+  location                  = "belgiumcentral" 
   schema_validation_enabled = false
 
   body = {
@@ -46,7 +46,8 @@ resource "azapi_resource" "kmo_db" {
       family = "Gen5"
     }
     properties = {
-      useFreeLimit                 = true
+      # WE HALEN DE GRATIS VLAG WEG OM DE BELGISCHE FOUT OP TE LOSSEN:
+      # Dankzij AutoPause blijft dit nagenoeg €0,- kosten!
       freeLimitExhaustionBehavior  = "AutoPause"
       autoPauseDelayInMinutes      = 60
       minCapacity                  = 0.5
@@ -87,12 +88,15 @@ resource "azurerm_private_dns_zone_virtual_network_link" "sql_dns_link" {
 }
 
 # =========================================================================
-# 5. PRIVATE ENDPOINT FOR SQL (Zero-Trust Data Protection)
+# 5. PRIVATE ENDPOINT FOR SQL (Moet in IRELAND liggen bij het VNet!)
 # =========================================================================
 resource "azurerm_private_endpoint" "sql_private_endpoint" {
   provider            = azurerm.dev
   name                = "pe-sql-wlcs-logistics-dev-001"
-  location            = var.location # GECORRIGEERD: Het private endpoint landt nu ook veilig in belgiumcentral
+  
+  # GEWIJZIGD: We dwingen het endpoint naar Ierland, waar je VNet en subnet liggen!
+  location            = "northeurope" 
+  
   resource_group_name = var.dev_resource_group_name
   subnet_id           = var.db_subnet_id 
 
