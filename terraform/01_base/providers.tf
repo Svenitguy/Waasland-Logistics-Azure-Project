@@ -5,6 +5,10 @@ terraform {
       source  = "hashicorp/azurerm"
       version = "~> 5.7.0"
     }
+    # VOEG DEZE PROVIDER TOE: Vereist voor de free-tier API vlaggen uit je Google-zoekopdracht
+    azapi = {
+      source = "azure/azapi"
+    }
   }
 
   backend "azurerm" {
@@ -16,6 +20,7 @@ terraform {
   }
 }
 
+# 1. Standaard AzureRM Provider (Platform Subscription)
 provider "azurerm" {
   features {
     key_vault {
@@ -28,6 +33,7 @@ provider "azurerm" {
   resource_provider_registrations = "core"
 }
 
+# 2. AzureRM Provider Alias voor Development Workloads
 provider "azurerm" {
   alias                           = "dev"
   features {
@@ -38,5 +44,12 @@ provider "azurerm" {
   }
   use_oidc                        = true
   subscription_id                 = var.subscription_id_dev
+  resource_provider_registrations = "core"
+}
+
+# 3. AzAPI Provider (Gekoppeld aan je Dev Subscription via OIDC)
+provider "azapi" {
+  subscription_id                 = var.subscription_id_dev
+  use_oidc                        = true
   resource_provider_registrations = "core"
 }
