@@ -43,6 +43,7 @@ jobs:
     name: "2. Plan Core Infrastructure"
     needs: validate
     runs-on: ubuntu-latest
+    environment: development # <--- HIER TOEGEVOEGD: Lost de OIDC-fout op via je bestaande dev-credential!
     env:
       ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
