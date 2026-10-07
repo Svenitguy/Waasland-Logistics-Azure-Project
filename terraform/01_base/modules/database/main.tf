@@ -8,13 +8,13 @@ resource "random_password" "vm_password" {
 }
 
 # =========================================================================
-# 2. AZURE SQL SERVER & DATABASE (Gekoppeld aan de Serverless Free Offer)
+# 2. AZURE SQL SERVER
 # =========================================================================
 resource "azurerm_mssql_server" "sql_server" {
   provider                     = azurerm.dev
-  name                         = "sql-wlcs-logistics-dev-free-001" # GEWIJZIGD: Unieke naam om conflicten met je handmatige test te voorkomen!
+  name                         = "sql-wlcs-logistics-dev-free-001" 
   resource_group_name          = var.dev_resource_group_name
-  location                     = var.location 
+  location                     = "westeurope" # WAF Resilience: We wijken uit naar West-Europa (of belgiumcentral) wegens capaciteit
   version                      = "12.0"
   administrator_login          = "wlcsdbadmin"
   administrator_login_password = random_password.vm_password.result
@@ -29,19 +29,32 @@ resource "azurerm_mssql_server" "sql_server" {
   }
 }
 
-resource "azurerm_mssql_database" "kmo_db" {
-  name         = "db-wlcs-logistics-dev"
-  server_id    = azurerm_mssql_server.sql_server.id
-  collation    = "SQL_Latin1_General_CP1_CI_AS"
-  license_type = "BasePrice"
-  max_size_gb  = 32 # Verplicht 32GB voor de Serverless / Free Tier configuratie
+# =========================================================================
+# 3. AZURE SQL DATABASE VIA AZAPI (Dwingt het Free Offer af via Code!)
+# =========================================================================
+resource "azapi_resource" "kmo_db" {
+  type      = "Microsoft.Sql/servers/databases@2022-08-01-preview"
+  name      = "db-wlcs-logistics-dev"
+  parent_id = azurerm_mssql_server.sql_server.id
+  location  = "westeurope" # Moet matchen met de server locatie
+  schema_validation_enabled = false
 
-  # ENTERPRISE SERVERLESS SKU: Matcht exact met je succesvolle portal-validatie
-  sku_name     = "GP_S_Gen5_1" 
-  min_capacity = 0.5           
-  
-  # FinOps Auto-Pause: Schakelt zichzelf na 1 uur inactiviteit uit naar €0 compute-kosten!
-  auto_pause_delay_in_minutes = 60 
+  body = {
+    sku = {
+      name   = "GP_S_Gen5_1"
+      tier   = "GeneralPurpose"
+      family = "Gen5"
+    }
+    properties = {
+      # DIT IS DE GEHEIME SLEUTEL DIE JE VIA GOOGLE VOND:
+      useFreeLimit                 = true
+      freeLimitExhaustionBehavior  = "AutoPause"
+      autoPauseDelayInMinutes      = 60
+      minCapacity                  = 0.5
+      collation                    = "SQL_Latin1_General_CP1_CI_AS"
+      maxSizeBytes                 = 34359738368 # 32 GB in bytes (vereist door AzAPI)
+    }
+  }
 
   tags = {
     Environment = "Dev"
@@ -51,7 +64,7 @@ resource "azurerm_mssql_database" "kmo_db" {
 }
 
 # =========================================================================
-# 3. PRIVATE DNS ZONES & LINKS FOR SQL
+# 4. PRIVATE DNS ZONES & LINKS FOR SQL
 # =========================================================================
 resource "azurerm_private_dns_zone" "sql_dns_zone" {
   name                = "privatelink.database.windows.net"
@@ -75,12 +88,12 @@ resource "azurerm_private_dns_zone_virtual_network_link" "sql_dns_link" {
 }
 
 # =========================================================================
-# 4. PRIVATE ENDPOINT FOR SQL (Zero-Trust Data Protection)
+# 5. PRIVATE ENDPOINT FOR SQL (Zero-Trust Data Protection)
 # =========================================================================
 resource "azurerm_private_endpoint" "sql_private_endpoint" {
   provider            = azurerm.dev
   name                = "pe-sql-wlcs-logistics-dev-001"
-  location            = var.location
+  location            = "westeurope" # Private endpoint wordt gekoppeld aan de server in West-Europa
   resource_group_name = var.dev_resource_group_name
   subnet_id           = var.db_subnet_id 
 
@@ -101,4 +114,3 @@ resource "azurerm_private_endpoint" "sql_private_endpoint" {
     Owner       = "sys-admins"
   }
 }
-
