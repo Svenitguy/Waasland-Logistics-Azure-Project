@@ -51,5 +51,4 @@ provider "azurerm" {
 provider "azapi" {
   subscription_id                 = var.subscription_id_dev
   use_oidc                        = true
-  resource_provider_registrations = "core"
 }
