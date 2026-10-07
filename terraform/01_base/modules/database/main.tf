@@ -37,6 +37,7 @@ resource "azapi_resource" "kmo_db" {
   name      = "db-wlcs-logistics-dev"
   parent_id = azurerm_mssql_server.sql_server.id
   location  = "westeurope" # Moet matchen met de server locatie
+  schema_validation_enabled = false
 
   body = {
     sku = {
