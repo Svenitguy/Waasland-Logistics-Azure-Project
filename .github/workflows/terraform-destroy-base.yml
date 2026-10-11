@@ -1,0 +1,47 @@
+name: "WLCS - Azure Base Infrastructure Destroy"
+
+on:
+  workflow_dispatch: # UITSLUITEND handmatig te starten via de GitHub UI knop
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  destroy_base:
+    name: "Destroy Core Base Infrastructure Only"
+    runs-on: ubuntu-latest
+    env:
+      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_PLATFORM }}
+      ARM_USE_OIDC: true
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.5.7
+
+      - name: Azure Login via OIDC
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_PLATFORM }}
+
+      - name: Terraform Init (Base)
+        working-directory: ./terraform/01_base
+        run: terraform init
+
+      - name: Terraform Destroy (Base Only)
+        working-directory: ./terraform/01_base
+        run: |
+          terraform destroy -auto-approve \
+            -var "tenant_id=${{ secrets.AZURE_TENANT_ID }}" \
+            -var "client_id=${{ secrets.AZURE_CLIENT_ID }}" \
+            -var "subscription_id_platform=${{ secrets.AZURE_SUBSCRIPTION_PLATFORM }}" \
+            -var "subscription_id_dev=${{ secrets.AZURE_SUBSCRIPTION_DEV }}"
