@@ -1,7 +1,7 @@
 name: "WLCS - Azure Base Infrastructure Destroy"
 
 on:
-  workflow_dispatch: # Handmatig te starten via de GitHub UI knop
+  workflow_dispatch: 
 
 permissions:
   id-token: write
@@ -26,34 +26,45 @@ jobs:
         with:
           terraform_version: 1.5.7
 
+      # CAF/WAF RECHTEN FIX: We loggen in op de Platform sub, maar laden direct de Dev sub in als extra context!
       - name: Azure Login via OIDC
         uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_PLATFORM }}
+          allow-no-subscriptions: true
 
-      # -------------------------------------------------------------------------
-      # PROFESSIONAL CLEANUP: Forceer de verwijdering van de spook-resources via CLI
-      # -------------------------------------------------------------------------
-      - name: Clean Unmanaged Spook Resources
-        run: |
-          echo "1. Key Vault deleten uit de Dev subscription..."
-          az keyvault delete --name "kv-wlcs-log-dev-001" --subscription "${{ secrets.AZURE_SUBSCRIPTION_DEV }}" || true
-          
-          echo "2. Key Vault direct permanent purgen (omzeil de soft-delete prullenbak)..."
-          az keyvault purge --name "kv-wlcs-log-dev-001" --location "northeurope" --subscription "${{ secrets.AZURE_SUBSCRIPTION_DEV }}" || true
-          
-          echo "3. De onbeheerde Private DNS zone voor vaultcore verwijderen..."
-          az network private-dns zone delete --g "rg-wlcs-logistics-dev-001" --name "privatelink.vaultcore.azure.net" --subscription "${{ secrets.AZURE_SUBSCRIPTION_DEV }}" --yes || true
-
-      # -------------------------------------------------------------------------
-      # TERRAFORM DESTROY: Sloop de reguliere basis resources
-      # -------------------------------------------------------------------------
       - name: Terraform Init (Base)
         working-directory: ./terraform/01_base
         run: terraform init
 
+      # -------------------------------------------------------------------------
+      # STEP 1 (PROFESSIONAL): Schoon de state op ALS de resource er per ongeluk in staat
+      # -------------------------------------------------------------------------
+      - name: Terraform State Clean
+        working-directory: ./terraform/01_base
+        run: |
+          echo "Verwijderen van de onbeheerde vaultcore DNS-zone uit de Terraform State indien aanwezig..."
+          terraform state rm module.keyvault.azurerm_private_dns_zone.kv_dns || true
+
+      # -------------------------------------------------------------------------
+      # STEP 2 (PROFESSIONAL): Gericht de wees-resources opruimen op de DEV subscription
+      # -------------------------------------------------------------------------
+      - name: Azure CLI Targeted Cleanup
+        run: |
+          echo "Schakel om naar de Development Subscription context via de OIDC credentials..."
+          az account set --subscription "${{ secrets.AZURE_SUBSCRIPTION_DEV }}"
+          
+          echo "Verwijderen van de netwerklink van de vaultcore DNS-zone..."
+          az network private-dns link vnet delete -g "rg-wlcs-logistics-dev-001" -z "privatelink.vaultcore.azure.net" -n "link-kv-dns-to-spoke" --yes || true
+          
+          echo "Verwijderen van de losstaande vaultcore DNS-zone..."
+          az network private-dns zone delete -g "rg-wlcs-logistics-dev-001" -n "privatelink.vaultcore.azure.net" --yes || true
+
+      # -------------------------------------------------------------------------
+      # STEP 3: Veilige Terraform Destroy met behoud van je 'true' beveiligingsvlaggen
+      # -------------------------------------------------------------------------
       - name: Terraform Destroy (Base Only)
         working-directory: ./terraform/01_base
         run: |
