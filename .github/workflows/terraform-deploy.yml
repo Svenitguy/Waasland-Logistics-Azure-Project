@@ -4,20 +4,17 @@ on:
   push:
     branches:
       - main
-      - "feature/**" # De pipeline start nu bij ELKE push (zowel feature als main)
+      - "feature/**"
     paths-ignore:
       - 'README.md'
       - 'docs/screenshots/**'
-  workflow_dispatch: 
+  workflow_dispatch: # Activeert de grote handmatige startknop in GitHub
 
 permissions:
   id-token: write
   contents: read
 
 jobs:
-  # =========================================================================
-  # JOB 1: CODE VALIDATION (Draait ALTIJD: op feature én main)
-  # =========================================================================
   validate:
     name: "1. Code Validation & Security"
     runs-on: ubuntu-latest
@@ -36,14 +33,11 @@ jobs:
           terraform init -backend=false
           terraform validate
 
-  # =========================================================================
-  # JOB 2: BASE INFRASTRUCTURE - PLAN (Draait ALTIJD: op feature én main)
-  # =========================================================================
   plan_base:
     name: "2. Plan Core Infrastructure"
     needs: validate
     runs-on: ubuntu-latest
-    environment: development # <--- HIER TOEGEVOEGD: Lost de OIDC-fout op via je bestaande dev-credential!
+    environment: development
     env:
       ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
@@ -84,16 +78,13 @@ jobs:
           path: ./terraform/01_base/tfplan_base
           retention-days: 1
 
-  # =========================================================================
-  # JOB 3: BASE INFRASTRUCTURE - APPLY (Draait STRICT alleen op main!)
-  # =========================================================================
   apply_base:
     name: "3. Apply Core Infrastructure"
     needs: plan_base
-    # DIT IS DE BEVEILIGING: Draait alleen als de code daadwerkelijk op main gepusht/gemerged is!
-    if: github.ref == 'refs/heads/main'
+    # CAF/WAF UPDATE: Draait automatisch op main, OF handmatig via de startknop op je feature branch!
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
     environment: 
-      name: 'wlcs-infrastructure-production' # HIER stopt hij op main voor jouw goedkeuring
+      name: 'wlcs-infrastructure-production'
     runs-on: ubuntu-latest
     env:
       ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
@@ -129,12 +120,8 @@ jobs:
           terraform init
           terraform apply -auto-approve tfplan_base
 
-  # =========================================================================
-  # JOB 4: DURE ADDONS - PLAN & APPLY (Alleen bij handmatige startknop!)
-  # =========================================================================
   deploy_addons:
     name: "4. Deploy Dure Addons (Bastion, etc.)"
-    # Draait ALLEEN als je specifiek op de handmatige 'Run workflow' knop klikt
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     env:
