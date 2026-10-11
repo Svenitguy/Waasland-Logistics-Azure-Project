@@ -1,7 +1,7 @@
 name: "WLCS - Azure Base Infrastructure Destroy"
 
 on:
-  workflow_dispatch: # UITSLUITEND handmatig te starten via de GitHub UI knop
+  workflow_dispatch: # Handmatig te starten via de GitHub UI knop
 
 permissions:
   id-token: write
@@ -33,6 +33,23 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_PLATFORM }}
 
+      # -------------------------------------------------------------------------
+      # PROFESSIONAL CLEANUP: Forceer de verwijdering van de spook-resources via CLI
+      # -------------------------------------------------------------------------
+      - name: Clean Unmanaged Spook Resources
+        run: |
+          echo "1. Key Vault deleten uit de Dev subscription..."
+          az keyvault delete --name "kv-wlcs-log-dev-001" --subscription "${{ secrets.AZURE_SUBSCRIPTION_DEV }}" || true
+          
+          echo "2. Key Vault direct permanent purgen (omzeil de soft-delete prullenbak)..."
+          az keyvault purge --name "kv-wlcs-log-dev-001" --location "northeurope" --subscription "${{ secrets.AZURE_SUBSCRIPTION_DEV }}" || true
+          
+          echo "3. De onbeheerde Private DNS zone voor vaultcore verwijderen..."
+          az network private-dns zone delete --g "rg-wlcs-logistics-dev-001" --name "privatelink.vaultcore.azure.net" --subscription "${{ secrets.AZURE_SUBSCRIPTION_DEV }}" --yes || true
+
+      # -------------------------------------------------------------------------
+      # TERRAFORM DESTROY: Sloop de reguliere basis resources
+      # -------------------------------------------------------------------------
       - name: Terraform Init (Base)
         working-directory: ./terraform/01_base
         run: terraform init
